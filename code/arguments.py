@@ -93,11 +93,13 @@ class DataTrainingArguments:
     )
 
 
-@dataclass
 class CustomTrainingArguments(TrainingArguments):
-    def __init__(self, *args, num_train_epochs: int = 3, batch_size: int = 32, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        self.num_train_epochs = num_train_epochs
-        self.per_device_train_batch_size = batch_size
-        self.per_device_eval_batch_size = batch_size
+    # dataclass 필드로 추가하고, 기본값 설정
+    num_train_epochs: int = field(default=3)
+    batch_size: int = field(default=32)
+
+    def __post_init__(self):
+        super().__post_init__()  # 부모 클래스의 __post_init__ 호출
+        # 여기에서 필드 값을 설정
+        self.per_device_train_batch_size = self.batch_size
+        self.per_device_eval_batch_size = self.batch_size
