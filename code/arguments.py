@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from transformers import TrainingArguments
 
 @dataclass
 class ModelArguments:
@@ -90,3 +91,13 @@ class DataTrainingArguments:
     use_faiss: bool = field(
         default=False, metadata={"help": "Whether to build with faiss"}
     )
+
+
+@dataclass
+class CustomTrainingArguments(TrainingArguments):
+    def __init__(self, *args, num_train_epochs: int = 3, batch_size: int = 32, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        self.num_train_epochs = num_train_epochs
+        self.per_device_train_batch_size = batch_size
+        self.per_device_eval_batch_size = batch_size
