@@ -153,3 +153,4 @@ code/prediction/*
 models
 outputs
 test.py
+*.bin
