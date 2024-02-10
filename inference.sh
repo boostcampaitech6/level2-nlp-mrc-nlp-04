@@ -1,0 +1,8 @@
+python ./code/inference.py \ 
+--do_predic \
+--per_device_eval_batch_size 16 \
+--output_dir ./outputs/test_dataset/ \ 
+--dataset_name ./data/test_dataset/ \ 
+--model_name_or_path ./models/train_dataset/ \ 
+--overwrite_output_dir \
+--overwrite_cache  
