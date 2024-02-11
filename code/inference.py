@@ -30,10 +30,12 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     TrainingArguments,
-    set_seed,
 )
-from utils_qa import check_no_error, postprocess_qa_predictions
+from utils_qa import check_no_error, postprocess_qa_predictions, set_seed
+from utils.logging_utils import setup_logging
+from utils.datetime_helper import get_seoul_datetime_str
 
+seed = 2024
 logger = logging.getLogger(__name__)
 
 
@@ -52,17 +54,13 @@ def main():
     print(f"data is from {data_args.dataset_name}")
 
     # logging 설정
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
+    setup_logging()
 
     # verbosity 설정 : Transformers logger의 정보로 사용합니다 (on main process only)
     logger.info("Training/evaluation parameters %s", training_args)
 
     # 모델을 초기화하기 전에 난수를 고정합니다.
-    set_seed(training_args.seed)
+    set_seed(seed)
 
     datasets = load_from_disk(data_args.dataset_name)
     print(datasets)
@@ -247,6 +245,7 @@ def run_mrc(
             predictions=predictions,
             max_answer_length=data_args.max_answer_length,
             output_dir=training_args.output_dir,
+            prefix=get_seoul_datetime_str()
         )
         # Metric을 구할 수 있도록 Format을 맞춰줍니다.
         formatted_predictions = [

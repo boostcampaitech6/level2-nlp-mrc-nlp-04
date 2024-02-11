@@ -17,23 +17,12 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     TrainingArguments,
-    set_seed,
 )
-from utils_qa import check_no_error, postprocess_qa_predictions
-
+from utils_qa import check_no_error, postprocess_qa_predictions, set_seed
+from utils.logging_utils import setup_logging
+from utils.file_name_utils import save_custom_metrics
 
 seed = 2024
-deterministic = False
-
-random.seed(seed) # python random seed 고정
-np.random.seed(seed) # numpy random seed 고정
-torch.manual_seed(seed) # torch random seed 고정
-torch.cuda.manual_seed_all(seed)
-if deterministic: # cudnn random seed 고정 - 고정 시 학습 속도가 느려질 수 있습니다. 
-	torch.backends.cudnn.deterministic = True
-	torch.backends.cudnn.benchmark = False
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -46,26 +35,18 @@ def main():
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     print(model_args.model_name_or_path)
-
-    # [참고] argument를 manual하게 수정하고 싶은 경우에 아래와 같은 방식을 사용할 수 있습니다
-    # training_args.per_device_train_batch_size = 4
-    # print(training_args.per_device_train_batch_size)
     
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
 
     # logging 설정
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s -    %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
+    setup_logging()
 
     # verbosity 설정 : Transformers logger의 정보로 사용합니다 (on main process only)
     logger.info("Training/evaluation parameters %s", training_args)
 
     # 모델을 초기화하기 전에 난수를 고정합니다.
-    set_seed(training_args.seed)
+    set_seed(seed)
 
     datasets = load_from_disk(data_args.dataset_name)
     print(datasets)
@@ -81,9 +62,6 @@ def main():
         model_args.tokenizer_name
         if model_args.tokenizer_name is not None
         else model_args.model_name_or_path,
-        # 'use_fast' argument를 True로 설정할 경우 rust로 구현된 tokenizer를 사용할 수 있습니다.
-        # False로 설정할 경우 python으로 구현된 tokenizer를 사용할 수 있으며,
-        # rust version이 비교적 속도가 빠릅니다.
         use_fast=True,
     )
     model = AutoModelForQuestionAnswering.from_pretrained(
@@ -345,6 +323,7 @@ def run_mrc(
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
+        save_custom_metrics(trainer, metrics, prefix='train')
         trainer.save_state()
 
         output_train_file = os.path.join(training_args.output_dir, "train_results.txt")
@@ -368,7 +347,7 @@ def run_mrc(
         metrics["eval_samples"] = len(eval_dataset)
 
         trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
+        save_custom_metrics(trainer, metrics, prefix='eval')
 
 
 if __name__ == "__main__":

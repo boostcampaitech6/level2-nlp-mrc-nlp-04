@@ -34,7 +34,7 @@ from transformers.trainer_utils import get_last_checkpoint
 logger = logging.getLogger(__name__)
 
 
-def set_seed(seed: int = 42):
+def set_seed(seed: int = 2024):
     """
     seed 고정하는 함수 (random, numpy, torch)
 
