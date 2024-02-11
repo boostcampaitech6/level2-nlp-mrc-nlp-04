@@ -8,10 +8,7 @@ def save_custom_metrics(trainer, metrics, prefix='eval'):
     # 날짜와 시간 문자열 가져오기
     date_time_str = get_seoul_datetime_str()
     # 사용자 정의 파일 이름 구성
-    # scores = '_'.join([f"{k}={v:.4f}" for k, v in metrics.items()])
-    keys_to_extract = ['exact_match', 'f1']
-    values = [metrics[key] for key in keys_to_extract]
-    scores = '_'.join([f"{v:.4f}" for v in values])
+    scores = '_'.join([f"{v:.4f}" for k, v in metrics.items()])
 
     custom_filename = f"{prefix}_{date_time_str}_{scores}.json"
     
