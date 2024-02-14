@@ -20,7 +20,7 @@ from datasets import (
     load_from_disk,
     load_metric,
 )
-from retrieval_bm25 import SparseRetrieval
+from retrieval_bm25 import RetrievalBM25
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -105,14 +105,18 @@ def run_sparse_retrieval(
 ) -> DatasetDict:
 
     # Query에 맞는 Passage들을 Retrieval 합니다.
-    retriever = SparseRetrieval(
+    retriever = RetrievalBM25(
         tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
     )
-    retriever = SparseRetrieval(
-        tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
-    )
+    
 
-    df = retriever.retrieve(datasets["validation"], topk=data_args.top_k_retrieval)
+    if data_args.use_faiss:
+        retriever.build_faiss(num_clusters=data_args.num_clusters)
+        df = retriever.retrieve_faiss(
+            datasets["validation"], topk=data_args.top_k_retrieval
+        )
+    else:
+        df = retriever.retrieve(datasets["validation"], topk=data_args.top_k_retrieval)
 
     # test data 에 대해선 정답이 없으므로 id question context 로만 데이터셋이 구성됩니다.
     if training_args.do_predict:
