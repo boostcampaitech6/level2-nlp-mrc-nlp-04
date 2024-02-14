@@ -35,6 +35,10 @@ class SparseRetrieval:
         self.data_path = data_path
         with open(os.path.join(data_path, context_path), "r", encoding="utf-8") as f:
             wiki = json.load(f)
+        
+        self.contexts = list(dict.fromkeys([v["text"] for v in wiki.values()]))
+        self.corpus = [tokenize_fn(doc) for doc in self.contexts]
+        self.bm25 = BM25Okapi(self.corpus)  # BM25 객체 바로 초기화
 
         self.contexts = list(dict.fromkeys([v["text"] for v in wiki.values()]))
         print(f"Lengths of unique contexts : {len(self.contexts)}")
@@ -43,6 +47,27 @@ class SparseRetrieval:
         self.tokenizer = tokenize_fn
         self.corpus = [self.tokenizer(doc) for doc in self.contexts]
         self.bm25 = BM25Okapi(self.corpus)
+    def retrieve(self, query_or_dataset, topk=1):
+        if isinstance(query_or_dataset, str):  # 단일 쿼리 문자열 처리
+            query_tokens = self.tokenizer(query_or_dataset)
+            doc_scores = self.bm25.get_scores(query_tokens)
+            topk_indices = np.argsort(doc_scores)[::-1][:topk]
+            return [(self.contexts[i], doc_scores[i]) for i in topk_indices]
+
+        elif isinstance(query_or_dataset, Dataset):  # 데이터셋 처리
+            queries = query_or_dataset['question']
+            retrieved_results = []
+            for query in queries:
+                query_tokens = self.tokenizer(query)
+                doc_scores = self.bm25.get_scores(query_tokens)
+                topk_indices = np.argsort(doc_scores)[::-1][:topk]
+                retrieved_docs = [self.contexts[i] for i in topk_indices]
+                retrieved_results.append({
+                    'query': query,
+                    'retrieved_docs': retrieved_docs,
+                    'scores': [doc_scores[i] for i in topk_indices]
+                })
+            return pd.DataFrame(retrieved_results)
 
     def get_relevant_doc(self, query: str, k: Optional[int] = 1) -> Tuple[List, List]:
         query_tokens = self.tokenizer(query)

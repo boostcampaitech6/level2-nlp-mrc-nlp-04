@@ -83,7 +83,7 @@ class DataTrainingArguments:
         default=64, metadata={"help": "Define how many clusters to use for faiss."}
     )
     top_k_retrieval: int = field(
-        default=10,
+        default=50,
         metadata={
             "help": "Define how many top-k passages to retrieve based on similarity."
         },
@@ -96,7 +96,7 @@ class DataTrainingArguments:
 class CustomTrainingArguments(TrainingArguments):
     # dataclass 필드로 추가하고, 기본값 설정
     num_train_epochs: int = field(default=3)
-    batch_size: int = field(default=32)
+    batch_size: int = field(default=16)
 
     def __post_init__(self):
         super().__post_init__()  # 부모 클래스의 __post_init__ 호출
