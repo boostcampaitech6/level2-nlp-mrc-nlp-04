@@ -109,7 +109,7 @@ def run_sparse_retrieval(
             data_path=data_path, context_path=context_path, 
             setting_path='./retriever/elastic_setting.json', index_name='wiki-wiki'
         )
-     df = retriever.retrieve(datasets["validation"], topk=data_args.top_k_retrieval)
+    df = retriever.retrieve(datasets["validation"], topk=data_args.top_k_retrieval)
 
 
     if data_args.use_faiss:
