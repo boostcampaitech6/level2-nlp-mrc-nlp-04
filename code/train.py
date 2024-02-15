@@ -8,6 +8,7 @@ from typing import NoReturn
 
 from arguments import DataTrainingArguments, ModelArguments
 from datasets import DatasetDict, load_from_disk, load_metric
+from dataclasses import asdict
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -18,9 +19,11 @@ from transformers import (
     HfArgumentParser,
     TrainingArguments,
 )
+from pyprnt import prnt
 from utils_qa import check_no_error, postprocess_qa_predictions, set_seed
 from utils.logging_utils import setup_logging
 from utils.file_name_utils import save_custom_metrics
+from utils.hyper_parameters import hyprams
 
 seed = 2024
 logger = logging.getLogger(__name__)
@@ -38,7 +41,11 @@ def main():
     
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
-
+    # print(training_args)
+    
+    training_args_dict = asdict(training_args)
+    training_args_dict = {key: training_args_dict[key] for key in hyprams if key in training_args_dict}
+    prnt(training_args_dict)
     # logging 설정
     setup_logging()
 
@@ -49,7 +56,12 @@ def main():
     set_seed(seed)
 
     datasets = load_from_disk(data_args.dataset_name)
-    print(datasets)
+    datasets_info = {
+        'train' : {'features': str(datasets['train'].column_names),'num_rows': datasets['train'].num_rows},
+        'validation' : {'features': str(datasets['train'].column_names),'num_rows': datasets['train'].num_rows},
+    }
+    prnt(datasets_info['train'])
+    prnt(datasets_info['validation'])
 
     # AutoConfig를 이용하여 pretrained model 과 tokenizer를 불러옵니다.
     # argument로 원하는 모델 이름을 설정하면 옵션을 바꿀 수 있습니다.
