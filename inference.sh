@@ -1,6 +1,6 @@
 python ./code/inference.py \
- --do_predic \
- --per_device_eval_batch_size 32 \
+ --do_predict \
+ --per_device_eval_batch_size 16 \
  --seed 2024 \
  --output_dir ./outputs/test_dataset/ \
  --dataset_name ./data/test_dataset/ \
