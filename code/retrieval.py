@@ -13,10 +13,10 @@ from datasets import Dataset, concatenate_datasets, load_from_disk
 from sklearn.feature_extraction.text import TfidfVectorizer
 from tqdm.auto import tqdm
 
-seed = 2024
-random.seed(seed) # python random seed 고정
-np.random.seed(seed) # numpy random seed 고정
+from utils_qa import set_seed
 
+seed = 2024
+set_seed(seed)
 
 
 @contextmanager
@@ -30,7 +30,7 @@ class SparseRetrieval:
     def __init__(
         self,
         tokenize_fn,
-        data_path: Optional[str] = "../data/",
+        data_path: Optional[str] = "./data/",
         context_path: Optional[str] = "wikipedia_documents.json",
     ) -> NoReturn:
 
