@@ -1,5 +1,5 @@
 python ./code/inference.py \
- --do_predic \
+ --do_predict \
  --per_device_eval_batch_size 32 \
  --seed 2024 \
  --output_dir ./outputs/test_dataset/ \
