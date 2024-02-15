@@ -10,6 +10,7 @@ import sys
 from typing import Callable, Dict, List, NoReturn, Tuple
 
 import numpy as np
+from pyprnt import prnt
 from arguments import DataTrainingArguments, ModelArguments
 from datasets import (
     Dataset,
@@ -63,7 +64,9 @@ def main():
     set_seed(seed)
 
     datasets = load_from_disk(data_args.dataset_name)
-    print(datasets)
+    datasets_info = {'features': str(datasets['validation'].column_names),
+                     'num_rows': datasets['validation'].num_rows}
+    prnt(datasets_info)
 
     # AutoConfig를 이용하여 pretrained model 과 tokenizer를 불러옵니다.
     # argument로 원하는 모델 이름을 설정하면 옵션을 바꿀 수 있습니다.

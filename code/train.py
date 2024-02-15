@@ -58,7 +58,7 @@ def main():
     datasets = load_from_disk(data_args.dataset_name)
     datasets_info = {
         'train' : {'features': str(datasets['train'].column_names),'num_rows': datasets['train'].num_rows},
-        'validation' : {'features': str(datasets['train'].column_names),'num_rows': datasets['train'].num_rows},
+        'validation' : {'features': str(datasets['validation'].column_names),'num_rows': datasets['validation'].num_rows},
     }
     prnt(datasets_info['train'])
     prnt(datasets_info['validation'])
