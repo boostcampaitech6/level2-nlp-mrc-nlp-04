@@ -5,6 +5,8 @@ tqdm
 pandas
 scikit-learn
 pyprnt
+elasticsearch
+rank_bm25
 
 # faiss install (if you want to)
 faiss-gpu
