@@ -28,7 +28,15 @@ from utils.hyper_parameters import hyprams
 seed = 2024
 logger = logging.getLogger(__name__)
 
+from knockknock import slack_sender
 
+
+#본인의 webhook_url, channel 입력해주기!
+webhook_url = "https://hooks.slack.com/services/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"
+channel = "김민석_T6016"
+
+
+@slack_sender(webhook_url=webhook_url, channel=channel)
 def main():
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.

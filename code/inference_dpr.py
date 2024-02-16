@@ -10,6 +10,7 @@ import sys
 from typing import Callable, Dict, List, NoReturn, Tuple
 
 import numpy as np
+from pyprnt import prnt
 from arguments import DataTrainingArguments, ModelArguments
 from datasets import (
     Dataset,
@@ -20,7 +21,7 @@ from datasets import (
     load_from_disk,
     load_metric,
 )
-from retrieval_bm25 import RetrievalBM25
+from retrieval_dpr import DenseRetrieval
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -34,17 +35,15 @@ from transformers import (
 from utils_qa import check_no_error, postprocess_qa_predictions, set_seed
 from utils.logging_utils import setup_logging
 from utils.datetime_helper import get_seoul_datetime_str
-
-seed = 2024
-logger = logging.getLogger(__name__)
-
 from knockknock import slack_sender
 
 
-#본인의 webhook_url, channel 입력해주기!
+#slack 알림용 - 본인의 webhook_url, channel 입력해주기!
 webhook_url = "https://hooks.slack.com/services/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"
 channel = "김민석_T6016"
 
+seed = 2024
+logger = logging.getLogger(__name__)
 
 @slack_sender(webhook_url=webhook_url, channel=channel)
 def main():
@@ -71,7 +70,9 @@ def main():
     set_seed(seed)
 
     datasets = load_from_disk(data_args.dataset_name)
-    print(datasets)
+    datasets_info = {'features': str(datasets['validation'].column_names),
+                     'num_rows': datasets['validation'].num_rows}
+    prnt(datasets_info)
 
     # AutoConfig를 이용하여 pretrained model 과 tokenizer를 불러옵니다.
     # argument로 원하는 모델 이름을 설정하면 옵션을 바꿀 수 있습니다.
@@ -94,7 +95,7 @@ def main():
 
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
-        datasets = run_sparse_retrieval(
+        datasets = run_dense_retrieval(
             tokenizer.tokenize, datasets, training_args, data_args,
         )
 
@@ -103,7 +104,7 @@ def main():
         run_mrc(data_args, training_args, model_args, datasets, tokenizer, model)
 
 
-def run_sparse_retrieval(
+def run_dense_retrieval(
     tokenize_fn: Callable[[str], List[str]],
     datasets: DatasetDict,
     training_args: TrainingArguments,
@@ -113,10 +114,14 @@ def run_sparse_retrieval(
 ) -> DatasetDict:
 
     # Query에 맞는 Passage들을 Retrieval 합니다.
-    retriever = RetrievalBM25(
-        tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
-    )
     
+    # retriever = SparseRetrieval(
+    #    tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
+    #)
+    retriever = DenseRetrieval(args=training_args, dataset=datasets, num_neg=2, tokenizer=tokenize_fn, p_encoder=p_encoder, q_encoder=q_encoder)
+
+    #retriever.get_sparse_embedding()
+    retriever.get_relevant_doc() # 이게 맞나? -> 이게 sparse에서의 임베딩 얻는 역할 인가?
 
     if data_args.use_faiss:
         retriever.build_faiss(num_clusters=data_args.num_clusters)
