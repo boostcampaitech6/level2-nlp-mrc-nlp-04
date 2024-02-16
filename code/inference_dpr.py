@@ -113,6 +113,10 @@ def run_dense_retrieval(
     context_path: str = "wikipedia_documents.json",
 ) -> DatasetDict:
 
+    #haystack에서 긁어온 모델
+    p_encoder = "facebook/dpr-ctx_encoder-single-nq-base"
+    q_encoder = "facebook/dpr-question_encoder-single-nq-base"
+
     # Query에 맞는 Passage들을 Retrieval 합니다.
     
     # retriever = SparseRetrieval(
@@ -123,6 +127,8 @@ def run_dense_retrieval(
     #retriever.get_sparse_embedding()
     retriever.get_relevant_doc() # 이게 맞나? -> 이게 sparse에서의 임베딩 얻는 역할 인가?
 
+
+
     if data_args.use_faiss:
         retriever.build_faiss(num_clusters=data_args.num_clusters)
         df = retriever.retrieve_faiss(
@@ -130,6 +136,10 @@ def run_dense_retrieval(
         )
     else:
         df = retriever.retrieve(datasets["validation"], topk=data_args.top_k_retrieval)
+
+
+
+
 
     # test data 에 대해선 정답이 없으므로 id question context 로만 데이터셋이 구성됩니다.
     if training_args.do_predict:
