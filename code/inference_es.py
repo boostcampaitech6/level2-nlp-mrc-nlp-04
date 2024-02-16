@@ -20,7 +20,7 @@ from datasets import (
     load_from_disk,
     load_metric,
 )
-from retriever.retrieval_elastic import ElasticRetrieval
+from retrieval_es import ElasticRetrieval
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
