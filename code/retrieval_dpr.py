@@ -397,6 +397,42 @@ class DenseRetrieval:
         return rank[:k]
 
 
+    def get_relevant_doc_bulk(
+        self, queries: List, k: Optional[int] = 1
+    ) -> Tuple[List, List]:
+        """ 다중 Query에 대해서 각각 유사도가 높은 Topk개의 Passage를 찾는 함수
+
+        Args:
+            query (str): Query
+            k (Optional[int], optional): Topk의 값. Defaults to 1.
+
+        Returns:
+            Tuple[List, List]: 각각의 Query에 대해서 유사도가 높은 Topk개의 Passage
+        """
+
+        q_emb = list()
+
+        for q in tqdm(queries):
+            query_emb = self.tokenizer(q, stride=128, truncation=True, padding="max_length", return_tensors='pt').to('cuda')
+            q_emb.append(self.Model.query(**query_emb).to('cpu').detach().numpy())
+        
+        query_vec = np.array(q_emb).squeeze()
+        assert (
+            np.sum(query_vec) != 0
+        ), "오류가 발생했습니다. 이 오류는 보통 query에 vectorizer의 vocab에 없는 단어만 존재하는 경우 발생합니다."
+
+        result = self.Model.get_score(query_vec, self.p_embedding).numpy()
+
+        doc_scores = []
+        doc_indices = []
+        for i in range(result.shape[0]):
+            sorted_result = np.argsort(result[i, :])[::-1]
+            doc_scores.append(result[i, :][sorted_result].tolist()[:k])
+            doc_indices.append(sorted_result.tolist()[:k])
+        return doc_scores, doc_indices
+
+
+
 
     def retrieve(
         self, query_or_dataset: Union[str, Dataset], topk: Optional[int] = 1
