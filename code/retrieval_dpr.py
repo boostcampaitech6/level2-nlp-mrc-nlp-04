@@ -9,6 +9,10 @@ from contextlib import contextmanager
 from typing import List, NoReturn, Optional, Tuple, Union
 from pprint import pprint
 from sklearn.feature_extraction.text import TfidfVectorizer
+from transformers.modeling_outputs import BaseModelOutput
+from transformers import AutoTokenizer, AutoModel
+
+from DenseModel import *
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -116,6 +120,15 @@ class DenseRetrieval:
         #wiki_data = dataset.rename_column('text', 'context')
         
         
+        MODEL_NAME = "klue/roberta-base"
+        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+        self.Model = ColBERTModel.from_pretrained(MODEL_NAME)
+        #self.Model.load_state_dict(torch.load("level2-nlp-mrc-nlp-04/models/train_dataset/checkpoint-1500/optimizer.pt"))
+        self.Model.to("cuda")
+        
+        
+        
         # 데이터셋 로드
         train_dataset_path = "./data/train_dataset/train"  # 실제 데이터셋 경로로 수정
         train_dataset = load_from_disk(train_dataset_path)
@@ -146,26 +159,62 @@ class DenseRetrieval:
                 self.dense_embedding = pickle.load(file)
             print("Dense Embedding loaded.")            
         else:
-            # 파일이 없으면 계산
+            # # 파일이 없으면 계산
             print("Build dense embedding")
-            inputs = self.tokenizer(self.contexts, return_tensors="pt", padding=True, truncation=True)
+            # inputs = self.tokenizer(self.contexts, return_tensors="pt", padding=True, truncation=True)
             
-            print("dense 임베딩 중간!")
+            p_emb = list()
             
             
-            with torch.no_grad():
-                # outputs = self.model(**inputs)
-                print("dense 임베딩 중간2~")
-                outputs = self.p_encoder(**inputs)
-                print("dense 임베딩 중간3~")
-            self.dense_embedding = outputs.last_hidden_state.mean(dim=1).numpy()
+            self.p_encoder.to('cpu')
             
-            print("dense 임베딩 중간4~")
-            
-            # print(self.dense_embedding.shape)
+            for p in tqdm(self.contexts):
+                context_emb = self.tokenizer(p, stride=128, truncation=True, padding="max_length", return_tensors='pt')
+                #context_emb = context_emb.to('cuda:0')
+                
+                
+                # 수정된 코드
+                # 수정된 코드
+                outputs = self.p_encoder(**context_emb)             
+
+                if isinstance(outputs, BaseModelOutput):
+                    last_hidden_state = outputs.last_hidden_state
+                else:
+                    last_hidden_state = outputs  # outputs가 BaseModelOutput이 아니라면 그대로 사용             
+
+                
+                #가장 위가 디폴트
+                # pooler_output = last_hidden_state[:, 0, :]  # [CLS] 토큰에 대한 hidden state를 사용하여 pooler_output 생성
+                #pooler_output = last_hidden_state[:, 0, :].view(last_hidden_state.size(0), -1)
+                pooler_output = last_hidden_state.squeeze(0)
+                
+                p_emb.append(pooler_output.to('cpu').detach().numpy())
+                
+                # 이전 코드
+                # p_emb.append(self.p_encoder(**context_emb).pooler_output.to('cpu').detach().numpy())
+
+            self.p_embedding = np.array(p_emb).squeeze()
+
+            #print(self.p_embedding.shape)
+
             with open(emd_path, "wb") as file:
-                pickle.dump(self.dense_embedding, file)
-            print("Dense Embedding saved.")
+                pickle.dump(self.p_embedding, file)
+            print("Embedding pickle saved.")
+            
+            
+            # with torch.no_grad():
+            #     # outputs = self.model(**inputs)
+            #     print("dense 임베딩 중간2~")
+            #     outputs = self.p_encoder(**inputs)
+            #     print("dense 임베딩 중간3~")
+            # self.dense_embedding = outputs.last_hidden_state.mean(dim=1).numpy()
+            
+            # print("dense 임베딩 중간4~")
+            
+            # # print(self.dense_embedding.shape)
+            # with open(emd_path, "wb") as file:
+            #     pickle.dump(self.dense_embedding, file)
+            # print("Dense Embedding saved.")
             
             
 
