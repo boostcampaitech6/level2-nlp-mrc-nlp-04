@@ -1,4 +1,4 @@
-python ./code/inference.py \
+python ./code/inference_dpr.py \
  --do_predict \
  --per_device_eval_batch_size 16 \
  --seed 2024 \

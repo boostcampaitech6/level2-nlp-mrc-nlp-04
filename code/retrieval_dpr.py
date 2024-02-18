@@ -1,3 +1,4 @@
+import faiss
 import json
 import random
 import os
@@ -69,24 +70,106 @@ class BertEncoder(BertPreTrainedModel):
 # Anwer
 class DenseRetrieval:
 
-    def __init__(self, args, dataset, num_neg, tokenizer, p_encoder, q_encoder, p_dataset):
+    def __init__(self, args, dataset, num_neg, tokenizer, p_encoder, q_encoder, 
+                 data_path: Optional[str] = "./data/",
+                 context_path: Optional[str] = "wikipedia_documents.json",):   
 
         '''
         학습과 추론에 사용될 여러 셋업을 마쳐봅시다.
         '''
         
-        self.p_dataset = p_dataset  # p_encoder에 먹일 위키피디아 데이터셋 정의
         self.args = args
         self.dataset = dataset
         self.num_neg = num_neg
 
         self.tokenizer = tokenizer
-        self.p_encoder = p_encoder
+        self.p_encoder = p_encoder    
         self.q_encoder = q_encoder
+        
+        #새로 정의해준 변수들
+        self.data_path = data_path
+        self.context_path = context_path
+        
+        #self.model = p_encoder
+        
+        
+        
+        with open(os.path.join(data_path, context_path), "r", encoding="utf-8") as f:
+            wiki = json.load(f)
 
-        self.prepare_in_batch_negative(num_neg=num_neg, dataset=dataset, p_dataset=p_dataset)   # p_dataset추가
+        self.contexts = list(
+            dict.fromkeys([v["text"] for v in wiki.values()])
+            #dict.fromkeys([v["context"] for v in wiki.values()])
+        )  # set 은 매번 순서가 바뀌므로
+        
+        
+        
+        
+        
+        print(f"Lengths of unique contexts : {len(self.contexts)}")
+        self.ids = list(range(len(self.contexts)))
+        
+        # JSON 데이터를 datasets.Dataset 형식으로 변환
+        #wiki_data = Dataset.from_dict(wiki) 
+        
+        # 'text' 열을 'context'로 변경
+        #wiki_data = dataset.rename_column('text', 'context')
+        
+        
+        # 데이터셋 로드
+        train_dataset_path = "./data/train_dataset/train"  # 실제 데이터셋 경로로 수정
+        train_dataset = load_from_disk(train_dataset_path)
+        print(train_dataset)
+        
+        self.prepare_in_batch_negative(num_neg=num_neg, dataset=train_dataset, tokenizer=tokenizer) 
+        
+        print('완.')
 
-    def prepare_in_batch_negative(self, dataset=None, num_neg=2, tokenizer=None, p_dataset=None):   # p_dataset 추가
+    # dense embedding 얻는 함수 -> 피클 파일로 저장
+    def get_dense_embedding(self): 
+        """
+        Summary:
+            Passage Embedding을 만들고
+            pickle로 저장합니다.
+            만약 미리 저장된 파일이 있으면 저장된 pickle을 불러옵니다.
+        """
+        
+        
+        #피클 저장
+        pickle_name = f"dense_embedding.bin"
+        emd_path = os.path.join(self.data_path, pickle_name)
+        
+        # Dense Embedding 파일 존재 여부 확인
+        if os.path.isfile(emd_path):
+            # 파일이 이미 존재하면 로드
+            with open(emd_path, "rb") as file:
+                self.dense_embedding = pickle.load(file)
+            print("Dense Embedding loaded.")            
+        else:
+            # 파일이 없으면 계산
+            print("Build dense embedding")
+            inputs = self.tokenizer(self.contexts, return_tensors="pt", padding=True, truncation=True)
+            
+            print("dense 임베딩 중간!")
+            
+            
+            with torch.no_grad():
+                # outputs = self.model(**inputs)
+                print("dense 임베딩 중간2~")
+                outputs = self.p_encoder(**inputs)
+                print("dense 임베딩 중간3~")
+            self.dense_embedding = outputs.last_hidden_state.mean(dim=1).numpy()
+            
+            print("dense 임베딩 중간4~")
+            
+            # print(self.dense_embedding.shape)
+            with open(emd_path, "wb") as file:
+                pickle.dump(self.dense_embedding, file)
+            print("Dense Embedding saved.")
+            
+            
+
+    def prepare_in_batch_negative(self, dataset, num_neg=2, tokenizer=None): 
 
         if dataset is None:
             dataset = self.dataset
@@ -96,11 +179,13 @@ class DenseRetrieval:
 
         # 1. In-Batch-Negative 만들기
         # CORPUS를 np.array로 변환해줍니다.        
-        corpus = np.array(list(set([example for example in p_dataset['context']])))
+        
+        corpus = np.array(list(set([example for example in dataset['context']])))
+        #corpus = np.array(list(set([example for example in dataset['text']])))
         p_with_neg = []
 
         for c in dataset['context']:
-            
+        #for c in dataset['text']:    
             while True:
                 neg_idxs = np.random.randint(len(corpus), size=num_neg)
 
@@ -112,9 +197,19 @@ class DenseRetrieval:
                     break
 
         # 2. (Question, Passage) 데이터셋 만들어주기
+        # q_seqs = tokenizer(dataset['question'], padding="max_length", truncation=True, return_tensors='pt')
+    
+        print("type:", type(dataset['question']))
         q_seqs = tokenizer(dataset['question'], padding="max_length", truncation=True, return_tensors='pt')
+        
+        print(q_seqs)
+        
+        
         p_seqs = tokenizer(p_with_neg, padding="max_length", truncation=True, return_tensors='pt')
 
+        print("type:", type(p_seqs[0]))
+        print(p_seqs[0])
+        
         max_len = p_seqs['input_ids'].size(-1)
         p_seqs['input_ids'] = p_seqs['input_ids'].view(-1, num_neg+1, max_len)
         p_seqs['attention_mask'] = p_seqs['attention_mask'].view(-1, num_neg+1, max_len)
@@ -128,6 +223,8 @@ class DenseRetrieval:
         self.train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=self.args.per_device_train_batch_size)
 
         valid_seqs = tokenizer(dataset['context'], padding="max_length", truncation=True, return_tensors='pt')
+        #valid_seqs = tokenizer(dataset['text'], padding="max_length", truncation=True, return_tensors='pt')
+       
         passage_dataset = TensorDataset(
             valid_seqs['input_ids'], valid_seqs['attention_mask'], valid_seqs['token_type_ids']
         )

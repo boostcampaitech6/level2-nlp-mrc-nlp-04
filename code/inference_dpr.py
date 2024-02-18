@@ -8,6 +8,8 @@ Open-Domain Question Answering 을 수행하는 inference 코드 입니다.
 import logging
 import sys
 from typing import Callable, Dict, List, NoReturn, Tuple
+from transformers import DPRContextEncoder, DPRContextEncoderTokenizer
+
 
 import numpy as np
 from pyprnt import prnt
@@ -21,7 +23,7 @@ from datasets import (
     load_from_disk,
     load_metric,
 )
-from retrieval_dpr import DenseRetrieval
+from retrieval_dpr import BertEncoder, DenseRetrieval
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -95,8 +97,33 @@ def main():
 
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
+        
+        # 혹시 위에서 사용한 encoder가 있다면 주석처리 후 진행해주세요 (CUDA ...)
+        # 토크나이저 따로 설정
+        #d_tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+        #p_encoder = BertEncoder.from_pretrained(model_checkpoint).to(args.device)
+        #q_encoder = BertEncoder.from_pretrained(model_checkpoint).to(args.device)
+        
+        
+        model_checkpoint = 'klue/bert-base'
+        
+        d_tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+        p_encoder = BertEncoder.from_pretrained(model_checkpoint).to('cpu')
+        q_encoder = BertEncoder.from_pretrained(model_checkpoint).to('cpu')
+        
+            
+        
+        #tokenizer = DPRContextEncoderTokenizer.from_pretrained("facebook/dpr-ctx_encoder-single-nq-base")
+        #model = DPRContextEncoder.from_pretrained("facebook/dpr-ctx_encoder-single-nq-base")
+        #input_ids = tokenizer("Hello, is my dog cute ?", return_tensors="pt")["input_ids"]
+        #embeddings = model(input_ids).pooler_output
+        
+        
+        # datasets = run_dense_retrieval(
+        #     tokenizer.tokenize, datasets, training_args, data_args,
+        # )
         datasets = run_dense_retrieval(
-            tokenizer.tokenize, datasets, training_args, data_args,
+            d_tokenizer, datasets, training_args, data_args, p_encoder=p_encoder, q_encoder=q_encoder
         )
 
     # eval or predict mrc model
@@ -105,27 +132,31 @@ def main():
 
 
 def run_dense_retrieval(
-    tokenize_fn: Callable[[str], List[str]],
+    # tokenize_fn: Callable[[str], List[str]],
+    tokenizer,
     datasets: DatasetDict,
     training_args: TrainingArguments,
     data_args: DataTrainingArguments,
     data_path: str = "./data",
     context_path: str = "wikipedia_documents.json",
+    p_encoder = None, 
+    q_encoder = None,
 ) -> DatasetDict:
 
     #haystack에서 긁어온 모델
-    p_encoder = "facebook/dpr-ctx_encoder-single-nq-base"
-    q_encoder = "facebook/dpr-question_encoder-single-nq-base"
+    #p_encoder = "facebook/dpr-ctx_encoder-single-nq-base"
+    #q_encoder = "facebook/dpr-question_encoder-single-nq-base"
+
 
     # Query에 맞는 Passage들을 Retrieval 합니다.
     
     # retriever = SparseRetrieval(
     #    tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
     #)
-    retriever = DenseRetrieval(args=training_args, dataset=datasets, num_neg=2, tokenizer=tokenize_fn, p_encoder=p_encoder, q_encoder=q_encoder)
+    retriever = DenseRetrieval(args=training_args, dataset=datasets, num_neg=2, tokenizer=tokenizer, p_encoder=p_encoder, q_encoder=q_encoder)
 
-    #retriever.get_sparse_embedding()
-    retriever.get_relevant_doc() # 이게 맞나? -> 이게 sparse에서의 임베딩 얻는 역할 인가?
+    retriever.get_dense_embedding() #dense_embedding -> 구현해놓기
+    
 
 
 
