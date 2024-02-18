@@ -83,7 +83,7 @@ class DenseRetrieval:
         self.p_encoder = p_encoder
         self.q_encoder = q_encoder
 
-        self.prepare_in_batch_negative(num_neg=num_neg)
+        self.prepare_in_batch_negative(num_neg=num_neg, dataset=dataset)
 
     def prepare_in_batch_negative(self, dataset=None, num_neg=2, tokenizer=None):
 
