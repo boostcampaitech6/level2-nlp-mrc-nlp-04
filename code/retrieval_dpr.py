@@ -48,7 +48,7 @@ class DenseRetrieval:
         self.args = args
         self.data_path = data_path
         self.dataset = load_from_disk(os.path.join(self.data_path, 'train_dataset'))
-        self.train_dataset = self.dataset['train']
+        self.train_dataset = self.dataset['train'] if num_sample is -1 else self.dataset['train'][:num_sample]
         self.valid_dataset = self.dataset['validation']
         testdata = load_from_disk(os.path.join(self.data_path), 'test_dataset')
         self.test_dataset = testdata['validation']
@@ -79,6 +79,8 @@ class DenseRetrieval:
 
         if dataset is None:
             dataset = self.dataset
+            dataset = concatenate_datasets([dataset["train"].flatten_indices(),
+                                            dataset["validation"].flatten_indices()])
 
         if tokenizer is None:
             tokenizer = self.tokenizer
@@ -123,8 +125,9 @@ class DenseRetrieval:
         self.passage_dataloader = DataLoader(passage_dataset, batch_size=self.args.per_device_train_batch_size)
 
 
-    def prepare_pre_batch_negative(self):
-
+    def prepare_in_batch_negative_for_checkpoint(self):
+        # reference: https://arxiv.org/abs/2012.12624
+        # reference: https://github.com/boostcampaitech5/level2_nlp_mrc-nlp-04/blob/main/dpr_retrieval.py
 
         q_seqs = self.tokenizer(
             self.train_dataset['question'], padding="max_length",
@@ -314,7 +317,7 @@ class DenseRetrieval:
             total = []
             with timer("query exhaustive search"):
                 doc_scores, doc_indices = self.get_relevant_doc_bulk(
-                    query_or_dataset["question"], k=topk
+                    query_or_dataset["question"], k=topk, p_encoder=self.p_encoder, q_encoder=self.q_encoder
                 )
             for idx, example in enumerate(
                 tqdm(query_or_dataset, desc="Sparse retrieval: ")
@@ -336,7 +339,23 @@ class DenseRetrieval:
 
             cqas = pd.DataFrame(total)
             return cqas
-        
+
+
+    def get_q_embs(self):
+        with torch.no_grad():
+            self.q_encoder.eval()
+
+            self.q_embs = []
+            for batch in tqdm(self.passage_dataloader):
+                q_inputs = {
+                    'input_ids': batch[0].to(self.args.device),
+                    'attention_mask': batch[1].to(self.args.device),
+                    'token_type_ids': batch[2].to(self.args.device)
+                }
+                q_emb = self.q_encoder(**q_inputs).to('cpu')
+                self.q_embs.append(q_emb)
+        return self.q_embs
+
 
     def get_relevant_doc(self, query, k=10, args=None, p_encoder=None, q_encoder=None):
 
@@ -363,7 +382,51 @@ class DenseRetrieval:
 
         dot_prod_scores = torch.matmul(q_emb, torch.transpose(p_embs, 0, 1))
         rank = torch.argsort(dot_prod_scores, dim=1, descending=True).squeeze()
-        return rank[:k]
+        doc_score = dot_prod_scores.squeeze()[rank][:k]
+        doc_indices = rank.tolist()[:k]
+        return doc_score, doc_indices
+
+
+    def get_relevant_doc_bulk(self, query, k=10, args=None, p_encoder=None, q_encoder=None):
+
+        with torch.no_grad():
+            p_encoder.eval()
+            q_encoder.eval()
+
+            # q_seqs_val = self.tokenizer([query], padding="max_length", truncation=True, return_tensors='pt').to(args.device)
+            # q_emb = q_encoder(**q_seqs_val).to('cpu')  # (num_query=1, emb_dim)
+            q_embs = self.get_q_embs()
+
+            p_embs = []
+            for batch in self.passage_dataloader:
+
+                batch = tuple(t.to(args.device) for t in batch)
+                p_inputs = {
+                    'input_ids': batch[0],
+                    'attention_mask': batch[1],
+                    'token_type_ids': batch[2]
+                }
+                p_emb = p_encoder(**p_inputs).to('cpu')
+                p_embs.append(p_emb)
+
+        # p_embs = torch.stack(p_embs, dim=0).view(len(self.passage_dataloader.dataset), -1)  # (num_passage, emb_dim)
+
+        # dot_prod_scores = torch.matmul(q_emb, torch.transpose(p_embs, 0, 1))
+        # rank = torch.argsort(dot_prod_scores, dim=1, descending=True).squeeze()
+        # doc_score = dot_prod_scores.squeeze()[rank][:k]
+        # doc_indices = rank.tolist()[:k]
+        # return doc_score, doc_indices
+        dot_pord_scores = torch.matmul(q_embs, torch.transpose(self.p_embs, 0, 1))
+        doc_scores = []
+        doc_indices = []
+        for i in range(dot_pord_scores.shape[0]):
+            rank = torch.argsort(dot_pord_scores[i, :], dim=-1, descending=True).squeeze()
+            doc_scores.append(dot_pord_scores[i, :][rank].tolist()[:k])
+            doc_indices.append(rank.tolist()[:k])
+
+        return doc_scores, doc_indices
+
+    
 
 class BertEncoder(BertPreTrainedModel):
 

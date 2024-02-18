@@ -135,7 +135,9 @@ def run_dense_retrieval(
         p_encoder=p_encoder,
         q_encoder=q_encoder
     )
-    retriever.train()
+    num_pre_batch = 0
+    retriever.train(num_pre_batch=num_pre_batch)
+    df = retriever.retrieve(query_or_dataset=datasets['validation'], topk=data_args.top_k_retrieval)
     # retriever.get_sparse_embedding()
 
     # if data_args.use_faiss:
@@ -146,15 +148,15 @@ def run_dense_retrieval(
     # else:
     #     df = retriever.retrieve(datasets["validation"], topk=data_args.top_k_retrieval)
 
-    # # test data 에 대해선 정답이 없으므로 id question context 로만 데이터셋이 구성됩니다.
-    # if training_args.do_predict:
-    #     f = Features(
-    #         {
-    #             "context": Value(dtype="string", id=None),
-    #             "id": Value(dtype="string", id=None),
-    #             "question": Value(dtype="string", id=None),
-    #         }
-    #     )
+    # test data 에 대해선 정답이 없으므로 id question context 로만 데이터셋이 구성됩니다.
+    if training_args.do_predict:
+        f = Features(
+            {
+                "context": Value(dtype="string", id=None),
+                "id": Value(dtype="string", id=None),
+                "question": Value(dtype="string", id=None),
+            }
+        )
 
     # # train data 에 대해선 정답이 존재하므로 id question context answer 로 데이터셋이 구성됩니다.
     # elif training_args.do_eval:
@@ -173,8 +175,8 @@ def run_dense_retrieval(
     #             "question": Value(dtype="string", id=None),
     #         }
     #     )
-    # datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
-    # return datasets
+    datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+    return datasets
 
 
 def run_mrc(
