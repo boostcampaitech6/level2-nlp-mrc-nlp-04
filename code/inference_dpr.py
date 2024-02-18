@@ -117,8 +117,18 @@ def run_dense_retrieval(
     # retriever = SparseRetrieval(
     #     tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
     # )
+    training_args.model_name_or_path = 'klue/bert-base'
+    args = TrainingArguments(
+        output_dir="dense_retireval",
+        evaluation_strategy="epoch",
+        learning_rate=1e-5,
+        per_device_train_batch_size=32,
+        per_device_eval_batch_size=32,
+        num_train_epochs=5,
+        weight_decay=0.01
+    )
     retriever = DenseRetrieval(
-        args=training_args,
+        args=args,
         dataset=datasets,
         num_neg=3,
         tokenizer=tokenizer,

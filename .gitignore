@@ -145,6 +145,7 @@ cython_debug/
 wandb
 code/assets/*
 code/prediction/*
+code/models/*
 *.ckpt
 *.pt
 **.csv
