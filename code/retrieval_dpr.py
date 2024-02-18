@@ -166,12 +166,14 @@ class DenseRetrieval:
             p_emb = list()
             
             
-            self.p_encoder.to('cpu')
+            self.p_encoder.to('cuda')
             
             for p in tqdm(self.contexts):
                 context_emb = self.tokenizer(p, stride=128, truncation=True, padding="max_length", return_tensors='pt')
                 #context_emb = context_emb.to('cuda:0')
                 
+                context_emb = {key: value.to('cuda') for key, value in context_emb.items()}
+
                 
                 # 수정된 코드
                 # 수정된 코드
@@ -374,7 +376,7 @@ class DenseRetrieval:
             q_encoder.eval()
 
             q_seqs_val = self.tokenizer([query], padding="max_length", truncation=True, return_tensors='pt').to(args.device)
-            q_emb = q_encoder(**q_seqs_val).to('cpu')  # (num_query=1, emb_dim)
+            q_emb = q_encoder(**q_seqs_val).to('cuda')  # (num_query=1, emb_dim)
 
             p_embs = []
             for batch in self.passage_dataloader:
@@ -385,7 +387,7 @@ class DenseRetrieval:
                     'attention_mask': batch[1],
                     'token_type_ids': batch[2]
                 }
-                p_emb = p_encoder(**p_inputs).to('cpu')
+                p_emb = p_encoder(**p_inputs).to('cuda')
                 p_embs.append(p_emb)
 
         p_embs = torch.stack(p_embs, dim=0).view(len(self.passage_dataloader.dataset), -1)  # (num_passage, emb_dim)

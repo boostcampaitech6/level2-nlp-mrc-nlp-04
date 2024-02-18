@@ -108,8 +108,8 @@ def main():
         model_checkpoint = 'klue/bert-base'
         
         d_tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
-        p_encoder = BertEncoder.from_pretrained(model_checkpoint).to('cpu')
-        q_encoder = BertEncoder.from_pretrained(model_checkpoint).to('cpu')
+        p_encoder = BertEncoder.from_pretrained(model_checkpoint).to('cuda')
+        q_encoder = BertEncoder.from_pretrained(model_checkpoint).to('cuda')
         
             
         
