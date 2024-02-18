@@ -69,12 +69,13 @@ class BertEncoder(BertPreTrainedModel):
 # Anwer
 class DenseRetrieval:
 
-    def __init__(self, args, dataset, num_neg, tokenizer, p_encoder, q_encoder):
+    def __init__(self, args, dataset, num_neg, tokenizer, p_encoder, q_encoder, p_dataset):
 
         '''
         학습과 추론에 사용될 여러 셋업을 마쳐봅시다.
         '''
-
+        
+        self.p_dataset = p_dataset  # p_encoder에 먹일 위키피디아 데이터셋 정의
         self.args = args
         self.dataset = dataset
         self.num_neg = num_neg
@@ -83,9 +84,9 @@ class DenseRetrieval:
         self.p_encoder = p_encoder
         self.q_encoder = q_encoder
 
-        self.prepare_in_batch_negative(num_neg=num_neg, dataset=dataset)
+        self.prepare_in_batch_negative(num_neg=num_neg, dataset=dataset, p_dataset=p_dataset)   # p_dataset추가
 
-    def prepare_in_batch_negative(self, dataset=None, num_neg=2, tokenizer=None):
+    def prepare_in_batch_negative(self, dataset=None, num_neg=2, tokenizer=None, p_dataset=None):   # p_dataset 추가
 
         if dataset is None:
             dataset = self.dataset
@@ -95,7 +96,7 @@ class DenseRetrieval:
 
         # 1. In-Batch-Negative 만들기
         # CORPUS를 np.array로 변환해줍니다.        
-        corpus = np.array(list(set([example for example in dataset['context']])))
+        corpus = np.array(list(set([example for example in p_dataset['context']])))
         p_with_neg = []
 
         for c in dataset['context']:
