@@ -22,6 +22,7 @@ from transformers import (
     AutoConfig,
     AutoModelForQuestionAnswering,
     AutoTokenizer,
+    BertTokenizerFast,
     DataCollatorWithPadding,
     EvalPrediction,
     HfArgumentParser,
@@ -94,7 +95,7 @@ def main():
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
         datasets = run_dense_retrieval(
-            tokenizer.tokenize, datasets, training_args, data_args,
+            datasets, training_args, data_args, 
         )
 
     # eval or predict mrc model
@@ -106,7 +107,7 @@ def run_dense_retrieval(
     datasets: DatasetDict,
     training_args: TrainingArguments,
     data_args: DataTrainingArguments,
-    tokenizer = AutoTokenizer.from_pretrained('klue/bert-base', padding="max_length", truncation=True, return_tensors="pt"),
+    tokenizer = BertTokenizerFast.from_pretrained('klue/bert-base', padding="max_length", truncation=True, return_tensors="pt"),
     data_path: str = "./data",
     context_path: str = "wikipedia_documents.json",
     p_encoder = BertEncoder.from_pretrained('klue/bert-base'),
@@ -122,8 +123,8 @@ def run_dense_retrieval(
         output_dir="dense_retireval",
         evaluation_strategy="epoch",
         learning_rate=1e-5,
-        per_device_train_batch_size=32,
-        per_device_eval_batch_size=32,
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
         num_train_epochs=5,
         weight_decay=0.01
     )

@@ -47,10 +47,12 @@ class DenseRetrieval:
         '''
         self.args = args
         self.data_path = data_path
-        self.dataset = load_from_disk(os.path.join(self.data_path, 'train_dataset'))
-        self.train_dataset = self.dataset['train'] if num_sample is -1 else self.dataset['train'][:num_sample]
+
+        self.dataset = load_from_disk(self.data_path+'/train_dataset')
+        self.train_dataset = self.dataset['train'] if num_sample == -1 else self.dataset['train'][:num_sample]
         self.valid_dataset = self.dataset['validation']
-        testdata = load_from_disk(os.path.join(self.data_path), 'test_dataset')
+        testdata = load_from_disk(self.data_path+'/test_dataset')
+        
         self.test_dataset = testdata['validation']
         del testdata
 
@@ -71,8 +73,8 @@ class DenseRetrieval:
         self.q_encoder = q_encoder
         self.pwd = os.getcwd()
         self.save_path = os.path.join(self.pwd, 'models/dpr')
-
-        self.prepare_in_batch_negative(num_neg=num_neg)
+        print('save_path :', self.save_path)
+        self.prepare_in_batch_negative(dataset=self.train_dataset, num_neg=num_neg)
 
 
     def prepare_in_batch_negative(self, dataset=None, num_neg=3, tokenizer=None):
@@ -81,7 +83,9 @@ class DenseRetrieval:
             dataset = self.dataset
             dataset = concatenate_datasets([dataset["train"].flatten_indices(),
                                             dataset["validation"].flatten_indices()])
-
+        # print(dataset)
+        # print(dataset['context'])
+        # print(dataset['features'])
         if tokenizer is None:
             tokenizer = self.tokenizer
 
@@ -101,7 +105,7 @@ class DenseRetrieval:
                     p_with_neg.append(c)
                     p_with_neg.extend(p_neg)
                     break
-
+        
         # 2. (Question, Passage) 데이터셋 만들어주기
         q_seqs = tokenizer(dataset['question'], padding="max_length", truncation=True, return_tensors='pt')
         p_seqs = tokenizer(p_with_neg, padding="max_length", truncation=True, return_tensors='pt')
@@ -206,13 +210,13 @@ class DenseRetrieval:
             with tqdm(self.train_dataloader, unit="batch") as tepoch:
                 for batch in tepoch:
 
-                    p_encoder.train()
-                    q_encoder.train()
+                    self.p_encoder.train()
+                    self.q_encoder.train()
             
                     targets = torch.zeros(batch_size).long() # positive example은 전부 첫 번째에 위치하므로
                     targets = targets.to(args.device)
 
-                    if num_pre_batch is not 0:  # Pre-batch
+                    if num_pre_batch != 0:  # Pre-batch
                         p_inputs = {
                             'input_ids': batch[0].to(args.device),
                             'attention_mask': batch[1].to(args.device),
@@ -234,7 +238,7 @@ class DenseRetrieval:
             
                     p_outputs = self.p_encoder(**p_inputs)  # (batch_size*(num_neg+1), emb_dim)
                     q_outputs = self.q_encoder(**q_inputs)  # (batch_size*, emb_dim)
-                    if num_pre_batch is not 0:  # Pre-batch negative sampling
+                    if num_pre_batch != 0:  # Pre-batch negative sampling
                         temp = p_outputs.clone().detach()
                         p_outputs = torch.cat((p_outputs, *p_queue), dim=0)
                         p_queue.append(temp)
@@ -491,8 +495,8 @@ if __name__ == '__main__':
         output_dir="dense_retireval",
         evaluation_strategy="epoch",
         learning_rate=2e-5,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=4,
         num_train_epochs=5,
         weight_decay=0.01
     )
