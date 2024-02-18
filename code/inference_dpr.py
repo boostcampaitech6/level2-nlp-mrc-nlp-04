@@ -129,7 +129,6 @@ def run_dense_retrieval(
     )
     retriever = DenseRetrieval(
         args=args,
-        dataset=datasets,
         num_neg=3,
         tokenizer=tokenizer,
         p_encoder=p_encoder,
