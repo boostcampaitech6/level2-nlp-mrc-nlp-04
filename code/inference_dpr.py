@@ -122,10 +122,10 @@ def run_dense_retrieval(
     args = TrainingArguments(
         output_dir="dense_retireval",
         evaluation_strategy="epoch",
-        learning_rate=1e-5,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        num_train_epochs=3,
+        learning_rate=1e-4,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
+        num_train_epochs=5,
         weight_decay=0.01
     )
     retriever = DenseRetrieval(
@@ -135,8 +135,9 @@ def run_dense_retrieval(
         p_encoder=p_encoder,
         q_encoder=q_encoder
     )
-    num_pre_batch = 0
+    num_pre_batch = 2 ##
     retriever.train(num_pre_batch=num_pre_batch)
+    retriever.get_embeddings(override=True)
     df = retriever.retrieve(query_or_dataset=datasets['validation'], topk=data_args.top_k_retrieval)
     # retriever.get_sparse_embedding()
 

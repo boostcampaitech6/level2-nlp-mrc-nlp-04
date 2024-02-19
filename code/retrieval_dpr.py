@@ -206,11 +206,24 @@ class DenseRetrieval:
             wiki_dataset, batch_size=self.args.per_device_train_batch_size, drop_last=False)
 
 
-    def train(self, args=None, override=True, num_pre_batch=2):
+    def train(self, args=None, override=False, num_pre_batch=2):
 
         if args is None:
             args = self.args
         batch_size = args.per_device_train_batch_size
+        
+        p_name = 'p_encoder_state_dict'
+        q_name = 'q_encoder_state_dict'
+        p_path = self.save_path+'/'+p_name
+        q_path = self.save_path+'/'+q_name
+        
+        if os.path.isfile(p_path) and os.path.isfile(q_path) and (not override):
+            self.p_encoder.load_state_dict(torch.load(p_path))
+            self.p_encoder.to(self.args.device)
+            self.q_encoder.load_state_dict(torch.load(q_path))
+            self.q_encoder.to(self.args.device)
+            print('encoder statedict loaded')
+            return
 
         # Optimizer
         no_decay = ['bias', 'LayerNorm.weight']
@@ -304,10 +317,10 @@ class DenseRetrieval:
         self.p_encoder = p_encoder
         self.q_encoder = q_encoder
 
-        if not os.path.exists(self.save_path):
-            os.makedirs(self.save_path)
-        torch.save(self.p_encoder.state_dict(), os.path.join(self.save_path, 'p_encoder_state_dict.pkl'))
-        torch.save(self.q_encoder.state_dict(), os.path.join(self.save_path, 'q_encoder_state_dict.pkl'))
+        # if not os.path.exists(self.save_path):
+        #     os.makedirs(self.save_path)
+        torch.save(self.p_encoder.state_dict(), self.save_path + '/p_encoder_state_dict.pkl')
+        torch.save(self.q_encoder.state_dict(), self.save_path + '/q_encoder_state_dict.pkl')
         print('encoder statedict saved')
 
 
@@ -353,9 +366,7 @@ class DenseRetrieval:
             # Retrieve한 Passage를 pd.DataFrame으로 반환합니다.
             total = []
             with timer("query exhaustive search"):
-                doc_scores, doc_indices = self.get_relevant_doc_bulk(
-                    query_or_dataset["question"], k=topk, p_encoder=self.p_encoder, q_encoder=self.q_encoder
-                )
+                doc_scores, doc_indices = self.get_relevant_doc_bulk(k=topk, mode='test')
             for idx, example in enumerate(
                 tqdm(query_or_dataset, desc="Dense retrieval: ")
             ):
@@ -418,8 +429,6 @@ class DenseRetrieval:
                     self.valid_q_embs = pickle.load(file)
                 print("Embedding pickle load.")
         else:
-            
-            
             with timer('get_p_embedding'):
                 with torch.no_grad():
                     self.p_encoder.eval()
@@ -442,7 +451,7 @@ class DenseRetrieval:
                 with torch.no_grad():
                     test_q_encoder.eval()
                     self.test_q_embs = []
-                    for batch in tqdm(self.test_dataloader, desc='600_q_embs'):
+                    for batch in tqdm(self.test_dataloader, desc='test_q_embs'):
                         q_inputs = {
                             'input_ids': batch[0].to(self.args.device),
                             'attention_mask': batch[1].to(self.args.device),
@@ -458,9 +467,9 @@ class DenseRetrieval:
             valid_q_encoder = copy(self.q_encoder)
             with timer('get_valid_q_embedding'):
                 with torch.no_grad():
-                    self.q_encoder.eval()
+                    valid_q_encoder.eval()
                     self.valid_q_embs = []
-                    for batch in tqdm(self.valid_dataloader, desc='240_q_embs'):
+                    for batch in tqdm(self.valid_dataloader, desc='valid_q_embs'):
                         q_inputs = {
                             'input_ids': batch[0].to(self.args.device),
                             'attention_mask': batch[1].to(self.args.device),
@@ -504,12 +513,14 @@ class DenseRetrieval:
         return doc_score, doc_indices
 
 
-    def get_relevant_doc_bulk(self, query, k=10, args=None, p_encoder=None, q_encoder=None, mode: str=''):
+    def get_relevant_doc_bulk(self, k=10, mode: str='test'):
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         if mode == 'valid':
             q_embs = self.valid_q_embs
+            p_embs = self.p_embs
         elif mode == 'test':
             q_embs = self.test_q_embs
+            p_embs = self.p_embs
         else:
             if p_encoder is None or q_encoder is None:
                 p_encoder = self.p_encoder
@@ -638,11 +649,11 @@ if __name__ == '__main__':
 
     retriever.train()
     retriever.get_embeddings(override=True)
-    query = list(dataset['validation'][0:3]['question'])
-    results, indices = retriever.get_relevant_doc_bulk(query=dataset, k=args.top_k_retrieval)
+    query = list(dataset['validation'][:3]['question'])
+    results, indices = retriever.get_relevant_doc_bulk(k=args.top_k_retrieval, mode='valid')
     print(f"[Search Query] {query}\n")
-    print(results)
-    print(indices)
+    print(results[0])
+    print(indices[0])
 
     try:
         results['rate'] = results.apply(lambda row: row['original_context'] in row['context'], axis=1)
