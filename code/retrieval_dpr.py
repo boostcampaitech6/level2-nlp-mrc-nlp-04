@@ -1,3 +1,13 @@
+"""
+# reference: https://arxiv.org/abs/2012.12624
+# reference: https://github.com/boostcampaitech5/level2_nlp_mrc-nlp-04/blob/main/dpr_retrieval.py
+boostcamp AI Tech 5기의 4조의 코드를 참고하였습니다.
+"""
+
+# reference: https://arxiv.org/abs/2012.12624
+# reference: https://github.com/boostcampaitech5/level2_nlp_mrc-nlp-04/blob/main/dpr_retrieval.py
+
+
 import os
 import json
 import random
@@ -6,6 +16,7 @@ import pickle
 from contextlib import contextmanager
 from collections import deque
 from typing import List, Optional, Tuple, Union
+from copy import deepcopy as copy
 
 import numpy as np
 import pandas as pd
@@ -36,6 +47,22 @@ def timer(name):
     t0 = time.time()
     yield
     print(f"[{name}] done in {time.time() - t0:.3f} s")
+
+
+def check_files_exist(file_path, file_list):
+    """
+    주어진 경로에 파일 목록에 있는 모든 파일이 존재하는지 확인하는 함수.
+    
+    :param file_list: 검사할 파일 이름들의 리스트
+    :param file_path: 파일들이 위치한 경로
+    :return: 모든 파일이 존재하면 True, 하나라도 없으면 False
+    """
+    for file_name in file_list:
+        # 파일의 전체 경로를 구성
+        full_path = os.path.join(file_path, file_name)
+        if not os.path.exists(full_path):
+            return False
+    return True
 
 
 class DenseRetrieval:
@@ -74,8 +101,10 @@ class DenseRetrieval:
         self.pwd = os.getcwd()
         self.save_path = os.path.join(self.pwd, 'models/dpr')
         print('save_path :', self.save_path)
-        self.prepare_in_batch_negative(dataset=self.train_dataset, num_neg=num_neg)
-
+        with timer("prepare_in_batch_negative_sampling"):
+            self.prepare_in_batch_negative(dataset=self.train_dataset, num_neg=num_neg)
+        with timer("prepare_embeddings"):
+            self.prepare_embeddings()
 
     def prepare_in_batch_negative(self, dataset=None, num_neg=3, tokenizer=None):
 
@@ -129,9 +158,7 @@ class DenseRetrieval:
         self.passage_dataloader = DataLoader(passage_dataset, batch_size=self.args.per_device_train_batch_size)
 
 
-    def prepare_in_batch_negative_for_checkpoint(self):
-        # reference: https://arxiv.org/abs/2012.12624
-        # reference: https://github.com/boostcampaitech5/level2_nlp_mrc-nlp-04/blob/main/dpr_retrieval.py
+    def prepare_embeddings(self):
 
         q_seqs = self.tokenizer(
             self.train_dataset['question'], padding="max_length",
@@ -179,7 +206,7 @@ class DenseRetrieval:
             wiki_dataset, batch_size=self.args.per_device_train_batch_size, drop_last=False)
 
 
-    def train(self, args=None, override=False, num_pre_batch=0):
+    def train(self, args=None, override=True, num_pre_batch=2):
 
         if args is None:
             args = self.args
@@ -200,8 +227,10 @@ class DenseRetrieval:
         # Start training!
         global_step = 0
 
-        self.p_encoder.zero_grad()
-        self.q_encoder.zero_grad()
+        p_encoder = self.p_encoder
+        q_encoder = self.q_encoder
+        p_encoder.zero_grad()
+        q_encoder.zero_grad()
         torch.cuda.empty_cache()
 
         train_iterator = tqdm(range(int(args.num_train_epochs)), desc="Epoch")
@@ -210,8 +239,8 @@ class DenseRetrieval:
             with tqdm(self.train_dataloader, unit="batch") as tepoch:
                 for batch in tepoch:
 
-                    self.p_encoder.train()
-                    self.q_encoder.train()
+                    p_encoder.train()
+                    q_encoder.train()
             
                     targets = torch.zeros(batch_size).long() # positive example은 전부 첫 번째에 위치하므로
                     targets = targets.to(args.device)
@@ -236,8 +265,8 @@ class DenseRetrieval:
                         'token_type_ids': batch[5].to(args.device)
                     }
             
-                    p_outputs = self.p_encoder(**p_inputs)  # (batch_size*(num_neg+1), emb_dim)
-                    q_outputs = self.q_encoder(**q_inputs)  # (batch_size*, emb_dim)
+                    p_outputs = p_encoder(**p_inputs)  # (batch_size*(num_neg+1), emb_dim)
+                    q_outputs = q_encoder(**q_inputs)  # (batch_size*, emb_dim)
                     if num_pre_batch != 0:  # Pre-batch negative sampling
                         temp = p_outputs.clone().detach()
                         p_outputs = torch.cat((p_outputs, *p_queue), dim=0)
@@ -264,19 +293,23 @@ class DenseRetrieval:
                     loss.backward()
                     optimizer.step()
                     scheduler.step()
-                    self.p_encoder.zero_grad()
-                    self.q_encoder.zero_grad()
+                    p_encoder.zero_grad()
+                    q_encoder.zero_grad()
                     global_step += 1
 
                     torch.cuda.empty_cache()
 
                     del p_inputs, q_inputs
         
+        self.p_encoder = p_encoder
+        self.q_encoder = q_encoder
+
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
-        torch.save(self.p_encoder.state_dict(), os.path.join(self.save_path, 'p_encoder_state_dict'))
-        torch.save(self.q_encoder.state_dict(), os.path.join(self.save_path, 'q_encoder_state_dict'))
+        torch.save(self.p_encoder.state_dict(), os.path.join(self.save_path, 'p_encoder_state_dict.pkl'))
+        torch.save(self.q_encoder.state_dict(), os.path.join(self.save_path, 'q_encoder_state_dict.pkl'))
         print('encoder statedict saved')
+
 
 
     def retrieve(
@@ -324,7 +357,7 @@ class DenseRetrieval:
                     query_or_dataset["question"], k=topk, p_encoder=self.p_encoder, q_encoder=self.q_encoder
                 )
             for idx, example in enumerate(
-                tqdm(query_or_dataset, desc="Sparse retrieval: ")
+                tqdm(query_or_dataset, desc="Dense retrieval: ")
             ):
                 tmp = {
                     # Query와 해당 id를 반환합니다.
@@ -361,14 +394,94 @@ class DenseRetrieval:
         return self.q_embs
 
 
-    def get_relevant_doc(self, query, k=10, args=None, p_encoder=None, q_encoder=None):
+    def get_embeddings(self, override: bool=False):
+        '''
+        전체 위키피디아 5만 7천개 혹은 num_sample로 p_embs를 만듭니다.
+        저장된 피클이 없다면 만든 뒤 저장하고, 있다면 로드합니다.
+        '''
+        p_emb_name = "p_embedding.bin"
+        p_emb_path = os.path.join(self.save_path, p_emb_name)
+        valid_q_emb_name = "validq_embedding.bin"
+        valid_q_emb_path = os.path.join(self.save_path, valid_q_emb_name)
+        test_q_emb_name = "testq_embedding.bin"
+        test_q_emb_path = os.path.join(self.save_path, test_q_emb_name)
+
+        if os.path.isfile(p_emb_path) and os.path.isfile(valid_q_emb_path) and os.path.isfile(test_q_emb_path) and (not override):
+            with timer('load embeddings'):
+                with open(p_emb_path, "rb") as file:
+                    self.p_embs = pickle.load(file)
+                
+                with open(test_q_emb_path, "rb") as file:
+                    self.test_q_embs = pickle.load(file)
+                
+                with open(valid_q_emb_path, "rb") as file:
+                    self.valid_q_embs = pickle.load(file)
+                print("Embedding pickle load.")
+        else:
+            
+            
+            with timer('get_p_embedding'):
+                with torch.no_grad():
+                    self.p_encoder.eval()
+                    self.p_embs = []
+                    for batch in tqdm(self.wiki_dataloader, desc='wiki_p_embs'):
+                        p_inputs = {
+                            'input_ids': batch[0].to(self.args.device),
+                            'attention_mask': batch[1].to(self.args.device),
+                            'token_type_ids': batch[2].to(self.args.device)
+                        }
+                        p_emb = self.p_encoder(**p_inputs).to('cpu')
+                        self.p_embs.append(p_emb)
+                self.p_embs = torch.cat(self.p_embs, dim=0)
+                print('p_embs.shape is', self.p_embs.shape)
+                with open(p_emb_path, 'wb') as file:
+                    pickle.dump(self.p_embs, file)
+
+            test_q_encoder = copy(self.q_encoder)
+            with timer('get_test_q_embedding'):
+                with torch.no_grad():
+                    test_q_encoder.eval()
+                    self.test_q_embs = []
+                    for batch in tqdm(self.test_dataloader, desc='600_q_embs'):
+                        q_inputs = {
+                            'input_ids': batch[0].to(self.args.device),
+                            'attention_mask': batch[1].to(self.args.device),
+                            'token_type_ids': batch[2].to(self.args.device)
+                        }
+                        q_emb = test_q_encoder(**q_inputs).to('cpu')
+                        self.test_q_embs.append(q_emb)
+                self.test_q_embs = torch.cat(self.test_q_embs, dim=0)
+                print('q_embs.shape is', self.test_q_embs.shape)
+                with open(test_q_emb_path, 'wb') as file:
+                    pickle.dump(self.test_q_embs, file)
+            
+            valid_q_encoder = copy(self.q_encoder)
+            with timer('get_valid_q_embedding'):
+                with torch.no_grad():
+                    self.q_encoder.eval()
+                    self.valid_q_embs = []
+                    for batch in tqdm(self.valid_dataloader, desc='240_q_embs'):
+                        q_inputs = {
+                            'input_ids': batch[0].to(self.args.device),
+                            'attention_mask': batch[1].to(self.args.device),
+                            'token_type_ids': batch[2].to(self.args.device)
+                        }
+                        q_emb = self.q_encoder(**q_inputs).to('cpu')
+                        self.valid_q_embs.append(q_emb)
+                self.valid_q_embs = torch.cat(self.valid_q_embs, dim=0)
+                print('q_embs.shape is', self.valid_q_embs.shape)
+                with open(valid_q_emb_path, 'wb') as file:
+                    pickle.dump(self.valid_q_embs, file)
+
+
+    def get_relevant_doc(self, query, k=5, args=None, p_encoder=None, q_encoder=None):
 
         with torch.no_grad():
             p_encoder.eval()
             q_encoder.eval()
 
             q_seqs_val = self.tokenizer([query], padding="max_length", truncation=True, return_tensors='pt').to(args.device)
-            q_emb = q_encoder(**q_seqs_val).to('cpu')  # (num_query=1, emb_dim)
+            q_embs = q_encoder(**q_seqs_val).to('cpu')  # (num_query=1, emb_dim)
 
             p_embs = []
             for batch in self.passage_dataloader:
@@ -383,44 +496,58 @@ class DenseRetrieval:
                 p_embs.append(p_emb)
 
         p_embs = torch.stack(p_embs, dim=0).view(len(self.passage_dataloader.dataset), -1)  # (num_passage, emb_dim)
-
-        dot_prod_scores = torch.matmul(q_emb, torch.transpose(p_embs, 0, 1))
+        print(p_embs.shape)
+        dot_prod_scores = torch.matmul(q_embs, torch.transpose(p_embs, 0, 1))
         rank = torch.argsort(dot_prod_scores, dim=1, descending=True).squeeze()
         doc_score = dot_prod_scores.squeeze()[rank][:k]
         doc_indices = rank.tolist()[:k]
         return doc_score, doc_indices
 
 
-    def get_relevant_doc_bulk(self, query, k=10, args=None, p_encoder=None, q_encoder=None):
+    def get_relevant_doc_bulk(self, query, k=10, args=None, p_encoder=None, q_encoder=None, mode: str=''):
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        if mode == 'valid':
+            q_embs = self.valid_q_embs
+        elif mode == 'test':
+            q_embs = self.test_q_embs
+        else:
+            if p_encoder is None or q_encoder is None:
+                p_encoder = self.p_encoder
+                q_encoder = self.q_encoder
 
-        with torch.no_grad():
-            p_encoder.eval()
-            q_encoder.eval()
+            with torch.no_grad():
+                p_encoder.eval()
+                q_encoder.eval()
 
-            # q_seqs_val = self.tokenizer([query], padding="max_length", truncation=True, return_tensors='pt').to(args.device)
-            # q_emb = q_encoder(**q_seqs_val).to('cpu')  # (num_query=1, emb_dim)
-            q_embs = self.get_q_embs()
+                # print(q_encoder)
+                # q_seqs_val = self.tokenizer(query, padding="max_length", truncation=True, return_tensors='pt').to(device)
+                # q_emb = q_encoder(**q_seqs_val).to('cpu')  # (num_query=1, emb_dim)
+                q_emb = self.get_q_embs()
+                # print(type(q_emb))
 
-            p_embs = []
-            for batch in self.passage_dataloader:
+                p_embs = []
+                for batch in self.passage_dataloader:
 
-                batch = tuple(t.to(args.device) for t in batch)
-                p_inputs = {
-                    'input_ids': batch[0],
-                    'attention_mask': batch[1],
-                    'token_type_ids': batch[2]
-                }
-                p_emb = p_encoder(**p_inputs).to('cpu')
-                p_embs.append(p_emb)
-
-        # p_embs = torch.stack(p_embs, dim=0).view(len(self.passage_dataloader.dataset), -1)  # (num_passage, emb_dim)
+                    batch = tuple(t.to(device) for t in batch)
+                    p_inputs = {
+                        'input_ids': batch[0],
+                        'attention_mask': batch[1],
+                        'token_type_ids': batch[2]
+                    }
+                    p_emb = p_encoder(**p_inputs).to('cpu')
+                    p_embs.append(p_emb)
+            
+            q_embs = torch.stack(q_emb, dim=0).view(len(self.passage_dataloader.dataset), -1)
+            p_embs = torch.stack(p_embs, dim=0).view(len(self.passage_dataloader.dataset), -1)  # (num_passage, emb_dim)
 
         # dot_prod_scores = torch.matmul(q_emb, torch.transpose(p_embs, 0, 1))
         # rank = torch.argsort(dot_prod_scores, dim=1, descending=True).squeeze()
         # doc_score = dot_prod_scores.squeeze()[rank][:k]
         # doc_indices = rank.tolist()[:k]
         # return doc_score, doc_indices
-        dot_pord_scores = torch.matmul(q_embs, torch.transpose(self.p_embs, 0, 1))
+
+
+        dot_pord_scores = torch.matmul(q_embs, torch.transpose(p_embs, 0, 1))
         doc_scores = []
         doc_indices = []
         for i in range(dot_pord_scores.shape[0]):
@@ -470,24 +597,23 @@ if __name__ == '__main__':
     parser.add_argument("--context_path", default="wikipedia_documents", type=str, help="")
     parser.add_argument("--use_faiss", default=False, type=bool, help="")
     parser.add_argument("--eval_retrieval", default=True, type=bool, help="")
-
+    parser.add_argument("--top_k_retrieval", default=5, type=int, help="")
     args = parser.parse_args()
 
     # Test sparse
     dataset = load_from_disk(args.dataset_name)
-    print(dataset)
     full_ds = concatenate_datasets(
         [
             dataset["train"].flatten_indices(),
             dataset["validation"].flatten_indices(),
         ]
     )  # train dev 를 합친 4192 개 질문에 대해 모두 테스트
-    print("*" * 40, "query dataset", "*" * 40)
-    print(full_ds)
+    # print("*" * 40, "query dataset", "*" * 40)
+    # print(full_ds)
 
     from transformers import AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, padding="max_length", truncation=True, return_tensors="pt")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, padding="max_length", truncation=True, return_tensors="pt", use_fast=True)
     p_encoder = BertEncoder.from_pretrained(args.model_name_or_path)
     q_encoder = BertEncoder.from_pretrained(args.model_name_or_path)
 
@@ -495,54 +621,37 @@ if __name__ == '__main__':
         output_dir="dense_retireval",
         evaluation_strategy="epoch",
         learning_rate=2e-5,
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
-        num_train_epochs=5,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
+        num_train_epochs=0.01,
         weight_decay=0.01
     )
     
     retriever = DenseRetrieval(
         args=training_args,
-        dataset=dataset['train'] if args.eval_retrieval else full_ds,
+        data_path='../data',
         num_neg=3,
         tokenizer=tokenizer,
         p_encoder=p_encoder,
         q_encoder=q_encoder
     )
 
-    # retriever.train()
-    
-    query = dataset['validation'][0]['question']
-    results = retriever.get_relevant_doc(query=query, k=5)
-    print(results)
+    retriever.train()
+    retriever.get_embeddings(override=True)
+    query = list(dataset['validation'][0:3]['question'])
+    results, indices = retriever.get_relevant_doc_bulk(query=dataset, k=args.top_k_retrieval)
     print(f"[Search Query] {query}\n")
+    print(results)
+    print(indices)
 
-    indices = results.tolist()
-    for i, idx in enumerate(indices):
-        print(f"Top-{i + 1}th Passage (Index {idx})")
-        pprint(retriever.dataset['answers'][idx])
+    try:
+        results['rate'] = results.apply(lambda row: row['original_context'] in row['context'], axis=1)
+        print(f'topk is {args.top_k_retrieval}, rate is {100*sum(results["rate"])/240}%')
+    except:
+        print('topk retrieval rate can\'t be printed. It is not train-valid set')
+    
+    print(retriever.retrieve(query_or_dataset=dataset['validation'][0:3], topk=args.top_k_retrieval))
+    # for i, idx in enumerate(indices):
+    #     print(f"Top-{i + 1}th Passage (Index {idx})")
+    #     pprint(retriever.dataset['context'][idx])
 
-    # FAISS 사용 안하므로 주석처리 하였습니다.
-    # if args.use_faiss:
-    #     # test single quer
-    #     with timer("single query by faiss"):
-    #         scores, indices = retriever.retrieve_faiss(query)
-
-    #     # test bulk
-    #     with timer("bulk query by exhaustive search"):
-    #         df = retriever.retrieve_faiss(full_ds)
-    #         df["correct"] = df["original_context"] == df["context"]
-
-    #         print("correct retrieval result by faiss", df["correct"].sum() / len(df))
-
-    # else:
-    #     with timer("bulk query by exhaustive search"):
-    #         df = retriever.retrieve(full_ds)
-    #         df["correct"] = df["original_context"] == df["context"]
-    #         print(
-    #             "correct retrieval result by exhaustive search",
-    #             df["correct"].sum() / len(df),
-    #         )
-
-    #     with timer("single query by exhaustive search"):
-    #         scores, indices = retriever.retrieve(query)

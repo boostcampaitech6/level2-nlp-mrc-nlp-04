@@ -125,7 +125,7 @@ def run_dense_retrieval(
         learning_rate=1e-5,
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
-        num_train_epochs=5,
+        num_train_epochs=3,
         weight_decay=0.01
     )
     retriever = DenseRetrieval(
