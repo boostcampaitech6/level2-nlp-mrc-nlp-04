@@ -6,9 +6,20 @@ import numpy as np
 import torch
 from typing import NoReturn
 
+
+# 이 블록은 모두 custom 에 추가된 라이브러리입니다
+import yaml
+import argparse
+from omegaconf import OmegaConf
+from omegaconf import DictConfig
+import wandb
+from utils.naming import wandb_naming# utils에 naming 파일 추가. 이걸로 자동으로 이름에 모델정보나 값들이 붙습니다 
+from tqdm import tqdm
+# 여기까지 추가된 부분
+
 from arguments import DataTrainingArguments, ModelArguments,CustomTrainingArguments
 from datasets import DatasetDict, load_from_disk, load_metric
-from dataclasses import asdict
+
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -26,30 +37,62 @@ from utils.file_name_utils import save_custom_metrics
 from utils.hyper_parameters import hyprams
 
 
-seed = 2023
+seed = 42
 logger = logging.getLogger(__name__)
 
 
-def main():
-    # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
-    # --help flag 를 실행시켜서 확인할 수 도 있습니다.
+# 나는!! 나는!! 커스텀 TrainingArguments 를 했다!!!
+# 음... 상관없을거같은데 전기수처럼 그냥 yaml 파일로 사용하는걸로.. 해야하려나
 
-    parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, TrainingArguments)#TrainingArguments)
+def main(args):
+   
+    # 걍 training_args 를 여기서 정의해서 쓰겠습니다. 이 args 는 yaml 파일에서 갖고옵니다.
+    # 기본적으로 
+    model_args, data_args = args.model, args.data
+    
+    #training_args 를 args 파일에서 갖고와서 넣어줍니다. omegaconf 을 이용해서 . 으로 들어갈수있씁니다
+    training_args = TrainingArguments(
+        output_dir=args.train.train_output_dir,
+        do_train=args.train.do_train, # true
+        do_eval=args.train.do_eval, # true
+        save_total_limit=3,
+        num_train_epochs=args.train.max_epoch,
+        learning_rate=args.train.learning_rate,
+        per_device_train_batch_size=args.train.batch_size,
+        per_device_eval_batch_size=args.train.batch_size,
+        evaluation_strategy="steps",
+        gradient_accumulation_steps=args.train.gradient_accumulation,
+        eval_steps=args.train.eval_step,
+        logging_steps=args.train.logging_step,
+        save_steps=args.train.save_step,
+        warmup_steps=args.train.warmup_steps,
+        weight_decay=args.train.weight_decay,
+        load_best_model_at_end=True,
+        metric_for_best_model='exact_match'
     )
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    model_args.model_name_or_path = model_args.saved_model_path if model_args.do_finetuning else model_args.model_name
+    
     print(model_args.model_name_or_path)
     
     print(f"model is from {model_args.model_name_or_path}")
-    print(f"data is from {data_args.dataset_name}")
-    # print(training_args)
+    print(f"data is from {data_args.train_dataset_name}")
     
-    training_args_dict = asdict(training_args)
-    
-    training_args_dict = {key: training_args_dict[key] for key in hyprams if key in training_args_dict}
-    #prnt(training_args_dict)
+    # Wandb 연결
+    if args.wandb.use:
+        wandb.init(project=args.wandb.project, name=wandb_naming(
+            args.wandb.name, model_args.model_name, training_args.per_device_train_batch_size, training_args.num_train_epochs, 
+            training_args.learning_rate, training_args.warmup_steps, training_args.weight_decay))
+        training_args.report_to = ["wandb"]
+    else:
+        wandb.init(should_run=False)
+        
+        
     # logging 설정
-    setup_logging()
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s -    %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
 
     # verbosity 설정 : Transformers logger의 정보로 사용합니다 (on main process only)
     logger.info("Training/evaluation parameters %s", training_args)
@@ -58,8 +101,16 @@ def main():
     set_seed(seed)
     print("seed is",seed)
 
+    def cleaning(input):
+        pattern = re.compile('\\\\n')
+        input['context'] = pattern.sub("  ", input['context'])
+        return input
+    
+    if data_args.unuse_remove:
+        if training_args.do_train: # 학습 시
+            datasets = datasets.map(cleaning)
     # 디스크에서 사전 처리된 데이터셋을 로드(?)
-    datasets = load_from_disk(data_args.dataset_name)
+    datasets = load_from_disk(data_args.train_dataset_name)
     datasets_info = {
         'train' : {'features': str(datasets['train'].column_names),'num_rows': datasets['train'].num_rows},
         'validation' : {'features': str(datasets['validation'].column_names),'num_rows': datasets['validation'].num_rows},
@@ -235,7 +286,7 @@ def run_mrc(
             stride=data_args.doc_stride,
             return_overflowing_tokens=True,
             return_offsets_mapping=True,
-            return_token_type_ids=False, # roberta모델을 사용할 경우 False, bert를 사용할 경우 True로 표기해야합니다.
+            return_token_type_ids=False if 'roberta' in model_args.model_name_or_path else True, # roberta모델을 사용할 경우 False, bert를 사용할 경우 True로 표기해야합니다.
             padding="max_length" if data_args.pad_to_max_length else False,
         )
 
@@ -309,9 +360,52 @@ def run_mrc(
 
     metric = load_metric("squad")
 
+    # 메트릭스를 변경해줬습니다 exact_match 로!
     def compute_metrics(p: EvalPrediction):
-        return metric.compute(predictions=p.predictions, references=p.label_ids)
+        metrics = metric.compute(predictions=p.predictions, references=p.label_ids)
+        exact_match = metrics['exact_match']
+        f1 = metrics['f1']
+        
+        return {'eval_exact_match' : exact_match, 'eval_f1' : f1}
+    
+    # 이 부분... 5조에 있길래 가져왔는데 임베딩레이어를 뭔가 픽스해주네? 뭐지..? 이부분은
+    # if args.train.fix_embedding_layer:
+    #     for name, param in model.named_parameters():
+    #         if 'embedding' in name:
+    #             param.requires_grad = False 
+    
+    # 토크나이저 학습용
+    # if args.train.tok_fine_tuning:
+    #     f = open('/opt/ml/input/data/unique_word.txt', 'r')
+    #     new_tokens = []
+        
+    #     while True:
+    #         line = f.readline()
+    #         line = line.replace('\n', '')
+    #         line = line.replace('\t', '')
+    #         new_tokens.append(line)
+            
+    #         if not line:
+    #             break
 
+    #     f.close()
+    #     # check if the tokens are already in the vocabulary
+    #     if '' in new_tokens:
+    #         new_tokens.remove('')
+            
+    #     new_tokens = set(new_tokens) - set(tokenizer.vocab.keys())
+    #     print("=========================== ADD_NEW_TOKEN ===========================")
+    #     print(new_tokens)
+    #     # add the tokens to the tokenizer vocabulary
+    #     tokenizer.add_tokens(list(new_tokens))
+    #     # add new, random embeddings for the new tokens
+    #     model.resize_token_embeddings(len(tokenizer))
+    #     print("=========================== Complete ===========================")
+
+    # for name, param in model.named_parameters():
+    #     print(name, param.requires_grad)
+        
+        
     # Trainer 초기화
     trainer = QuestionAnsweringTrainer(
         model=model,
@@ -369,6 +463,18 @@ def run_mrc(
         save_custom_metrics(trainer, metrics, prefix='eval')
 
 
+
+
 if __name__ == "__main__":
-    main()
+    # yaml 파일을 읽어오기 위해 변경되었습니다
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument(
+        "--args_path", default=f"/data/ephemeral/level2-nlp-mrc-nlp-04/code/args.yaml", type=str, help=""
+    )
+    arg = parser.parse_args()
     
+    args = OmegaConf.load(arg.args_path)
+    
+    set_seed(args.train.seed)
+    # 인풋으로 파일을 넣어줍시다!
+    main(args)
