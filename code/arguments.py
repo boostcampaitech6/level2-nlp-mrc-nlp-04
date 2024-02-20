@@ -39,6 +39,18 @@ class DataTrainingArguments:
         default="../data/train_dataset",
         metadata={"help": "The name of the dataset to use."},
     )
+    train_dataset_name: Optional[str] = field(
+        default="../data/train_dataset",
+        metadata={"help": "The name of the dataset to use."},
+    )
+    test_dataset_name: Optional[str] = field(
+        default="../data/test_dataset",
+        metadata={"help": "The name of the dataset to use."},
+    )
+    curriculum_learning_prediction_file: Optional[str] = field(
+        default="./models/curriculum_learning_prediction/predictions.json",
+        metadata={"help": "The name of the prediction file to use."},
+    )
     overwrite_cache: bool = field(
         default=False,
         metadata={"help": "Overwrite the cached training and evaluation sets"},
@@ -51,55 +63,53 @@ class DataTrainingArguments:
         default=384,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
+                    "than this will be truncated, sequences shorter will be padded."
         },
     )
     pad_to_max_length: bool = field(
         default=False,
         metadata={
             "help": "Whether to pad all samples to `max_seq_length`. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch (which can "
-            "be faster on GPU but will be slower on TPU)."
+                    "If False, will pad the samples dynamically when batching to the maximum length in the batch (which can "
+                    "be faster on GPU but will be slower on TPU)."
         },
     )
     doc_stride: int = field(
         default=128,
-        metadata={
-            "help": "When splitting up a long document into chunks, how much stride to take between chunks."
-        },
+        metadata={"help": "When splitting up a long document into chunks, how much stride to take between chunks."},
     )
     max_answer_length: int = field(
         default=30,
         metadata={
             "help": "The maximum length of an answer that can be generated. This is needed because the start "
-            "and end predictions are not conditioned on one another."
+                    "and end predictions are not conditioned on one another."
         },
     )
     eval_retrieval: bool = field(
         default=True,
         metadata={"help": "Whether to run passage retrieval using sparse embedding."},
     )
-    num_clusters: int = field(
-        default=64, metadata={"help": "Define how many clusters to use for faiss."}
-    )
+    num_clusters: int = field(default=64, metadata={"help": "Define how many clusters to use for faiss."})
     top_k_retrieval: int = field(
         default=10,
-        metadata={
-            "help": "Define how many top-k passages to retrieve based on similarity."
-        },
+        metadata={"help": "Define how many top-k passages to retrieve based on similarity."},
     )
-    use_faiss: bool = field(
-        default=False, metadata={"help": "Whether to build with faiss"}
+    use_faiss: bool = field(default=False, metadata={"help": "Whether to build with faiss"})
+    sparse_embedding: Optional[str] = field(
+        default="elasticsearch",
+        metadata={"help": "어떤 sparse embedding을 쓸 것인지에 대한 인자. 기본 : 'elasticsearch', 사용 가능 인자 : 'elasticsearch', 'tfidf'"},
+    )
+    es_index: Optional[str] = field(
+        default="wiki",
+        metadata={"help": "elasticsearch에서 어떤 인덱스를 쓸 것인지에 대한 인자. 기본 : 'wiki', 사용 가능 인자 : 'wiki', 추가 예정 : 'wiki_preprocessed'"},
     )
 
-
+@dataclass
 class CustomTrainingArguments(TrainingArguments):
-    # dataclass 필드로 추가하고, 기본값 설정
     num_train_epochs: int = field(default=3)
     batch_size: int = field(default=32)
 
     def __post_init__(self):
-        super().__post_init__()  # 부모 클래스의 __post_init__ 호출
-        # 여기에서 필드 값을 설정
+        super().__post_init__()
         self.per_device_train_batch_size = self.batch_size
         self.per_device_eval_batch_size = self.batch_size

@@ -18,9 +18,11 @@ Question-Answering task와 관련된 'Trainer'의 subclass 코드 입니다.
 
 from transformers import Trainer, is_datasets_available, is_torch_tpu_available
 from transformers.trainer_utils import PredictionOutput
+from transformers.trainer_callback import ProgressCallback
 
 if is_datasets_available():
     import datasets
+
 
 # Huggingface의 Trainer를 상속받아 QuestionAnswering을 위한 Trainer를 생성합니다.
 class QuestionAnsweringTrainer(Trainer):
@@ -102,3 +104,9 @@ class QuestionAnsweringTrainer(Trainer):
             test_examples, test_dataset, output.predictions, self.args
         )
         return predictions
+
+class CustomProgressCallback(ProgressCallback):
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if state.is_local_process_zero and self.training_bar is not None:
+            _ = logs.pop("total_flos", None)
