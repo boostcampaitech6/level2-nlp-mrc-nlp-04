@@ -250,9 +250,9 @@ train_dataset = load_dataset("squad_kor_v1")['train']
 #train_dataset = load_dataset('json', data_files={'train': '/data/ephemeral/level2-nlp-mrc-nlp-04/data/wikipedia_documents.json'})
 
 # 메모리가 부족한 경우 일부만 사용하세요 !
-# num_sample = 1500
-# sample_idx = np.random.choice(range(len(train_dataset)), num_sample)
-# train_dataset = train_dataset[sample_idx]
+num_sample = 1500
+sample_idx = np.random.choice(range(len(train_dataset)), num_sample)
+train_dataset = train_dataset[sample_idx]
 
 args = TrainingArguments(
     output_dir="dense_retrieval",
