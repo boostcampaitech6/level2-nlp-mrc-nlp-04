@@ -36,7 +36,16 @@ class DataTrainingArguments:
     """
 
     dataset_name: Optional[str] = field(
+        #default="./data/train_dataset",
+        default="./data/preprocessed-data/train_dataset",
+        metadata={"help": "The name of the dataset to use."},
+    )
+    train_dataset_name: Optional[str] = field(
         default="../data/train_dataset",
+        metadata={"help": "The name of the dataset to use."},
+    )
+    test_dataset_name: Optional[str] = field(
+        default="../data/test_dataset",
         metadata={"help": "The name of the dataset to use."},
     )
     overwrite_cache: bool = field(
@@ -83,7 +92,7 @@ class DataTrainingArguments:
         default=64, metadata={"help": "Define how many clusters to use for faiss."}
     )
     top_k_retrieval: int = field(
-        default=40,
+        default=30,
         metadata={
             "help": "Define how many top-k passages to retrieve based on similarity."
         },
@@ -95,7 +104,7 @@ class DataTrainingArguments:
 
 class CustomTrainingArguments(TrainingArguments):
     # dataclass 필드로 추가하고, 기본값 설정
-    num_train_epochs: int = field(default=3)
+    num_train_epochs: int = field(default=1)
     batch_size: int = field(default=16)
 
     def __post_init__(self):

@@ -6,18 +6,15 @@ wandb:
 
 
 model:
-  model_name: klue/roberta-large
-  #model_name_or_path: klue/roberta-large
-  saved_model_path: /data/ephemeral/level2-nlp-mrc-nlp-04/models/2 # inference 때 사용# inference 때 사용 및 korquad 1차 fine-tuning시 finetuning_dataset_roberta 사용
+  #model_name: klue/roberta-large
+  model_name_or_path: klue/roberta-large
+  #saved_model_path: /data/ephemeral/level2-nlp-mrc-nlp-04/models/2 # inference 때 사용# inference 때 사용 및 korquad 1차 fine-tuning시 finetuning_dataset_roberta 사용
   config_name: null
   tokenizer_name: null
-  tok_train: False
-  retrieval_tokenizer: monologg/koelectra-base-v3-finetuned-korquad # sparse_embedding.bin 이나 bm25_sparse_embedding.bin 은 tokenizer에 따라 달라집니다. 바꿀 경우, 삭제 후 inference하셔야 합니다.
-  do_finetuning: False # korquad 1차 finetuning시 True (default 및 2차 때는 False)
-
+  
 data:
-  train_dataset_name: /data/ephemeral/level2-nlp-mrc-nlp-04/data/preprocessed-data/train_dataset
-  test_dataset_name: /data/ephemeral/level2-nlp-mrc-nlp-04/data/preprocessed-data/test_dataset
+  train_dataset_name: "/data/ephemeral/level2-nlp-mrc-nlp-04/data/preprocessed-data/train_dataset"
+  test_dataset_name: "/data/ephemeral/level2-nlp-mrc-nlp-04/data/preprocessed-data/test_dataset"
   overwrite_cache: False
   preprocessing_num_workers: null
   max_seq_length: 384
@@ -28,11 +25,11 @@ data:
   num_clusters: 64
   top_k_retrieval: 30
   use_faiss: False
-  data_type: original # original, korquad, korquad_hard, mix, mix_hard (설명은 prepare_dataset.py에)
-  independent: True # 문서를 concat하지 않고 각각에 대해 inference를 하고 싶으시면 True
+  #data_type: original # original, korquad, korquad_hard, mix, mix_hard (설명은 prepare_dataset.py에)
+  #independent: True # 문서를 concat하지 않고 각각에 대해 inference를 하고 싶으시면 True
  #retrieval_type: reranking # tfidf, bm25, reranking, reranking2, es (es는 bin 파일을 생성하지 않습니다.)
-  unuse_remove: False # True 하면 \\n을 지워주고 학습, False 하면 원래대로 학습
-  use_faiss: false
+  #unuse_remove: False # True 하면 \\n을 지워주고 학습, False 하면 원래대로 학습
+  #use_faiss: false
 
 train:
   batch_size: 16

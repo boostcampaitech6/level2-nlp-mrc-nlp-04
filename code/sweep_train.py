@@ -15,6 +15,8 @@ from omegaconf import DictConfig
 import wandb
 from utils.naming import wandb_naming# utils에 naming 파일 추가. 이걸로 자동으로 이름에 모델정보나 값들이 붙습니다 
 from tqdm import tqdm
+import evaluate
+from random import randint
 # 여기까지 추가된 부분
 
 from arguments import DataTrainingArguments, ModelArguments,CustomTrainingArguments
@@ -37,123 +39,117 @@ from utils.file_name_utils import save_custom_metrics
 from utils.hyper_parameters import hyprams
 
 
+# sweep 을 위한 train 파일입니다. 
+
 seed = 42
 logger = logging.getLogger(__name__)
 
 
-# 나는!! 나는!! 커스텀 TrainingArguments 를 했다!!!
-# 음... 상관없을거같은데 전기수처럼 그냥 yaml 파일로 사용하는걸로.. 해야하려나
-
-def main(args):
-   
-    # 걍 training_args 를 여기서 정의해서 쓰겠습니다. 이 args 는 yaml 파일에서 갖고옵니다.
-    # 기본적으로 
-    model_args, data_args = args.model, args.data
-    
-    #training_args 를 args 파일에서 갖고와서 넣어줍니다. omegaconf 을 이용해서 . 으로 들어갈수있씁니다
-    training_args = TrainingArguments(
-        output_dir=args.train.train_output_dir,
-        do_train=args.train.do_train, # true
-        do_eval=args.train.do_eval, # true
-        save_total_limit=3,
-        num_train_epochs=args.train.max_epoch,
-        learning_rate=args.train.learning_rate,
-        per_device_train_batch_size=args.train.batch_size,
-        per_device_eval_batch_size=args.train.batch_size,
-        evaluation_strategy="steps",
-        gradient_accumulation_steps=args.train.gradient_accumulation,
-        eval_steps=args.train.eval_step,
-        logging_steps=args.train.logging_step,
-        save_steps=args.train.save_step,
-        warmup_steps=args.train.warmup_steps,
-        weight_decay=args.train.weight_decay,
-        load_best_model_at_end=True,
-        metric_for_best_model='exact_match'
-    )
-    model_args.model_name_or_path = model_args.saved_model_path if model_args.do_finetuning else model_args.model_name
-    
-    print(model_args.model_name_or_path)
-    
-    print(f"model is from {model_args.model_name_or_path}")
-    print(f"data is from {data_args.train_dataset_name}")
-    
-    # Wandb 연결
-    if args.wandb.use:
-        wandb.init(project=args.wandb.project, name=wandb_naming(
-            args.wandb.name, model_args.model_name, training_args.per_device_train_batch_size, training_args.num_train_epochs, 
-            training_args.learning_rate, training_args.warmup_steps, training_args.weight_decay))
-        training_args.report_to = ["wandb"]
-    else:
-        wandb.init(should_run=False)
+def set_version():
+    for i in range(1000):
+        yield i
         
         
-    # logging 설정
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s -    %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
+# 이건 11조에서 엑조디아 해온 sweep입니다.
 
-    # verbosity 설정 : Transformers logger의 정보로 사용합니다 (on main process only)
-    logger.info("Training/evaluation parameters %s", training_args)
 
-    # 모델을 초기화하기 전에 난수를 고정합니다.
-    set_seed(seed)
-    print("seed is",seed)
+def sweep_train(config=None):
+    # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
+    # --help flag 를 실행시켜서 확인할 수 도 있습니다.
 
-    def cleaning(input):
-        pattern = re.compile('\\\\n')
-        input['context'] = pattern.sub("  ", input['context'])
-        return input
+    with wandb.init(config=config) as run:
+        config = wandb.config
+        idx = next(ver)
+
+        model_args = ModelArguments(**config_dict["model"])
+        data_args = DataTrainingArguments(**config_dict["data"])
+        #model_args, data_args = config_dict["model"], config_dict["data"]
     
-    # if data_args.unuse_remove:
-    #     if training_args.do_train: # 학습 시
-    #         datasets = datasets.map(cleaning)
-    
-    # 디스크에서 사전 처리된 데이터셋을 로드(?)
-    datasets = load_from_disk(data_args.train_dataset_name)
-    datasets_info = {
-        'train' : {'features': str(datasets['train'].column_names),'num_rows': datasets['train'].num_rows},
-        'validation' : {'features': str(datasets['validation'].column_names),'num_rows': datasets['validation'].num_rows},
-    }
-    prnt(datasets_info['train'])
-    prnt(datasets_info['validation'])
-
-    # AutoConfig를 이용하여 pretrained model 과 tokenizer를 불러옵니다.
-    # argument로 원하는 모델 이름을 설정하면 옵션을 바꿀 수 있습니다.
-    config = AutoConfig.from_pretrained(
-        model_args.config_name
-        if model_args.config_name is not None
-        else model_args.model_name_or_path,
-        # hidden_dropout_prob=0.2,  # 드롭아웃 확률 수정을 위한 코드,??
-        # attention_probs_dropout_prob=0.2,  # 어텐션 드롭아웃 확률 수정
+        #training_args = CustomTrainingArguments(**config_dict["training_args"])
+        training_args = TrainingArguments(
+            output_dir=config_dict["train"]["train_output_dir"],
+            do_train=config_dict["train"]["do_train"],  # true
+            do_eval=config_dict["train"]["do_eval"],  # true
+            save_total_limit=3,
+            num_train_epochs=config_dict["train"]["max_epoch"],
+            learning_rate=config_dict["train"]["learning_rate"],
+            per_device_train_batch_size=config_dict["train"]["batch_size"],
+            per_device_eval_batch_size=config_dict["train"]["batch_size"],
+            evaluation_strategy="steps",
+            gradient_accumulation_steps=config_dict["train"]["gradient_accumulation"],
+            eval_steps=config_dict["train"]["eval_step"],
+            logging_steps=config_dict["train"]["logging_step"],
+            save_steps=config_dict["train"]["save_step"],
+            warmup_steps=config_dict["train"]["warmup_steps"],
+            weight_decay=config_dict["train"]["weight_decay"],
+            load_best_model_at_end=True,
+            metric_for_best_model='exact_match'
+        )
+         
         
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name
-        if model_args.tokenizer_name is not None
-        else model_args.model_name_or_path,
-        use_fast=True,
-    )
-    model = AutoModelForQuestionAnswering.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-    )
+        for key, value in config.items():
+            if hasattr(training_args, key):
+                setattr(training_args, key, value)
+            if hasattr(model_args, key):
+                setattr(model_args, key, value)
+            if hasattr(data_args, key):
+                setattr(data_args, key, value)
+        print(model_args.model_name_or_path)
 
-    print(
-        type(training_args),
-        type(model_args),
-        type(datasets),
-        type(tokenizer),
-        type(model),
-    )
+        print(f"model is from {model_args.model_name_or_path}")
+        #print(f"data is from {data_args.dataset_name}")
 
-    # do_train mrc model 혹은 do_eval mrc model
-    if training_args.do_train or training_args.do_eval:
-        run_mrc(data_args, training_args, model_args, datasets, tokenizer, model)
+        # logging 설정
+        logging.basicConfig(
+            format="%(asctime)s - %(levelname)s - %(name)s -    %(message)s",
+            datefmt="%m/%d/%Y %H:%M:%S",
+            handlers=[logging.StreamHandler(sys.stdout)],
+        )
+
+        # verbosity 설정 : Transformers logger의 정보로 사용합니다 (on main process only)
+        logger.info("Training/evaluation parameters %s", training_args)
+
+        # 모델을 초기화하기 전에 난수를 고정합니다.
+        training_args.seed = randint(1, (1 << 32) - 1)
+        set_seed(training_args.seed)
+
+        run.name = display_name + f"_{idx:03}"
+        training_args.output_dir = os.path.join(training_args.output_dir, f"{idx:03}")
+        data_args.dataset_name = data_args.train_dataset_name
+
+        datasets = load_from_disk(data_args.dataset_name)
+        print(datasets)
+
+        # AutoConfig를 이용하여 pretrained model 과 tokenizer를 불러옵니다.
+        # argument로 원하는 모델 이름을 설정하면 옵션을 바꿀 수 있습니다.
+        config = AutoConfig.from_pretrained(model_args.config_name if model_args.config_name is not None else model_args.model_name_or_path,)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name if model_args.tokenizer_name is not None else model_args.model_name_or_path,
+            # 'use_fast' argument를 True로 설정할 경우 rust로 구현된 tokenizer를 사용할 수 있습니다.
+            # False로 설정할 경우 python으로 구현된 tokenizer를 사용할 수 있으며,
+            # rust version이 비교적 속도가 빠릅니다.
+            use_fast=True,
+        )
+        model = AutoModelForQuestionAnswering.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+        )
+
+        print(
+            type(training_args),
+            type(model_args),
+            type(datasets),
+            type(tokenizer),
+            type(model),
+        )
+
+        # do_train mrc model 혹은 do_eval mrc model
+        if training_args.do_train or training_args.do_eval:
+            run_mrc(data_args, training_args, model_args, datasets, tokenizer, model)
 
     wandb.finish()
+
 
 def run_mrc(
     data_args: DataTrainingArguments,
@@ -370,43 +366,6 @@ def run_mrc(
         
         return {'eval_exact_match' : exact_match, 'eval_f1' : f1}
     
-    # 이 부분... 5조에 있길래 가져왔는데 임베딩레이어를 뭔가 픽스해주네? 뭐지..? 이부분은
-    # if args.train.fix_embedding_layer:
-    #     for name, param in model.named_parameters():
-    #         if 'embedding' in name:
-    #             param.requires_grad = False 
-    
-    # 토크나이저 학습용
-    # if args.train.tok_fine_tuning:
-    #     f = open('/opt/ml/input/data/unique_word.txt', 'r')
-    #     new_tokens = []
-        
-    #     while True:
-    #         line = f.readline()
-    #         line = line.replace('\n', '')
-    #         line = line.replace('\t', '')
-    #         new_tokens.append(line)
-            
-    #         if not line:
-    #             break
-
-    #     f.close()
-    #     # check if the tokens are already in the vocabulary
-    #     if '' in new_tokens:
-    #         new_tokens.remove('')
-            
-    #     new_tokens = set(new_tokens) - set(tokenizer.vocab.keys())
-    #     print("=========================== ADD_NEW_TOKEN ===========================")
-    #     print(new_tokens)
-    #     # add the tokens to the tokenizer vocabulary
-    #     tokenizer.add_tokens(list(new_tokens))
-    #     # add new, random embeddings for the new tokens
-    #     model.resize_token_embeddings(len(tokenizer))
-    #     print("=========================== Complete ===========================")
-
-    # for name, param in model.named_parameters():
-    #     print(name, param.requires_grad)
-        
         
     # Trainer 초기화
     trainer = QuestionAnsweringTrainer(
@@ -469,14 +428,34 @@ def run_mrc(
 
 if __name__ == "__main__":
     # yaml 파일을 읽어오기 위해 변경되었습니다
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument(
-        "--args_path", default=f"/data/ephemeral/level2-nlp-mrc-nlp-04/code/args.yaml", type=str, help=""
+    # Sweep을 통해 실행될 학습 코드 작성
+    with open("/data/ephemeral/level2-nlp-mrc-nlp-04/code/sweep.yaml", "r") as f:
+        sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+
+    ver = set_version()
+    
+    with open("/data/ephemeral/level2-nlp-mrc-nlp-04/code/args_sweep.yaml", "r") as f:
+        config_dict = yaml.load(f, Loader=yaml.FullLoader)
+    project_name = config_dict["wandb"]["project"]
+    entity_name = "nlp10jo" # 자기 wandb이름 넣으세요!!!!! https://wandb.ai/[entity]/[project_name]
+    display_name = wandb_naming(
+            config_dict["wandb"]["name"],config_dict["model"]["model_name_or_path"] ,config_dict["train"]["batch_size"] ,config_dict["train"]["max_epoch"], 
+            config_dict["train"]["learning_rate"],config_dict["train"]["warmup_steps"], config_dict["train"]["weight_decay"])
+
+    #entity = nlp10jo
+    #project=args.wandb.project, name=wandb_naming(
+            # args.wandb.name, model_args.model_name, training_args.per_device_train_batch_size, training_args.num_train_epochs, 
+            # training_args.learning_rate, training_args.warmup_steps, training_args.weight_decay))
+    
+    # Sweep 생성
+    sweep_id = wandb.sweep(
+        sweep=sweep_config,  # config 딕셔너리 추가,
+        entity=entity_name,  # 팀 이름
+        project=project_name  # project의 이름 추가
     )
-    arg = parser.parse_args()
+    wandb.agent(
+        sweep_id=sweep_id,  # sweep의 정보를 입력
+        function=sweep_train,  # train이라는 모델을 학습하는 코드를
+        count=3  # 총 n회 실행
+    )
     
-    args = OmegaConf.load(arg.args_path)
-    
-    set_seed(args.train.seed)
-    # 인풋으로 파일을 넣어줍시다!
-    main(args)
