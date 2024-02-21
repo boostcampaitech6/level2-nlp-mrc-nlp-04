@@ -1,0 +1,17 @@
+# sweep.yaml
+program: sweep.py
+method: random
+metric:
+  name: eval/em
+  goal: maximize
+parameters:
+  learning_rate:
+    values: [5e-05, 7e-05, 9e-05]
+  num_train_epochs:
+    values: [3]
+  per_device_train_batch_size:
+    values: [8, 16]
+  warmup_ratio:
+    values: [0, 0.01, 0.1]
+
+#드롭아웃정도>
