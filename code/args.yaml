@@ -7,7 +7,7 @@ wandb:
 
 model:
   model_name: klue/roberta-large
-  #model_name_or_path: klue/roberta-large
+  model_name_or_path: klue/roberta-large
   saved_model_path: /data/ephemeral/level2-nlp-mrc-nlp-04/models/2 # inference 때 사용# inference 때 사용 및 korquad 1차 fine-tuning시 finetuning_dataset_roberta 사용
   config_name: null
   tokenizer_name: null
@@ -27,42 +27,42 @@ data:
   eval_retrieval: True
   num_clusters: 64
   top_k_retrieval: 30
-  use_faiss: False
+  
   data_type: original # original, korquad, korquad_hard, mix, mix_hard (설명은 prepare_dataset.py에)
   independent: True # 문서를 concat하지 않고 각각에 대해 inference를 하고 싶으시면 True
  #retrieval_type: reranking # tfidf, bm25, reranking, reranking2, es (es는 bin 파일을 생성하지 않습니다.)
   unuse_remove: False # True 하면 \\n을 지워주고 학습, False 하면 원래대로 학습
-  use_faiss: false
-
+ 
 train:
   batch_size: 16
-  max_epoch: 4
-  learning_rate: 9.0e-6
+  max_epoch: 2
+  learning_rate: 0.00005
   eval_step: 500
-  logging_step: 1
+  logging_step: 100
   save_step: 500
   gradient_accumulation: 1
   # 이부분은 train 에서 할당해주기
   do_train: True # FALSE
   do_eval: True # train에서 True, 제출용 inference에서는 False, eval inference는 True
   do_predict: False # train에서 False, 제출용 inference에서는 True, eval inference에서는 False 하지만 우리 4조는 predict 는 기존 명령어로 진행합니다
-  train_output_dir: /data/ephemeral/level2-nlp-mrc-nlp-04/models/3 # korquad 1차 finetuning 시 저장할 dir 이름(예: finetuning_dataset_roberta)으로 바꿔줘야 함
+  train_output_dir: /data/ephemeral/level2-nlp-mrc-nlp-04/models/2 # korquad 1차 finetuning 시 저장할 dir 이름(예: finetuning_dataset_roberta)으로 바꿔줘야 함
   inference_output_dir: /data/ephemeral/level2-nlp-mrc-nlp-04/outputs
   warmup_steps: 0
   weight_decay: 0.0
-  seed: 42
+  seed: 30
   use_sep_token_in_inference: False
   #fix_embedding_layer: False # True 하면, 학습 시 embedding layer fix ! -----근데 여기 안씀
   fix_else_layer: False # tokenizer 재학습 시킬 경우 True로 해주세요 한 번 학습하신 후 False로 바꾸고 다시 학습시키면 됩니다.
   
   tok_fine_tuning: True # 이거 없다고 안돌아가는데... 아마 토크나이저 파인튜닝용 일거임. 일단 true 로..?
   
-  fp16: true
-  optim: "adamw_hf"
-  report_to: ["wandb"]
-  early_stopping: 5
-  evaluation_strategy: "steps"
-  save_strategy: "steps"
+  # fp16: true
+  # optim: "adamw_hf"
+  # report_to: ["wandb"]
+  # early_stopping: 5
+  # evaluation_strategy: "steps"
+  # save_strategy: "steps"
+
 
 inference_args:
   output_dir: "./outputs/output_name"

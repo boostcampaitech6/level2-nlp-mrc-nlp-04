@@ -43,7 +43,7 @@ train:
   do_train: True # FALSE
   do_eval: True # train에서 True, 제출용 inference에서는 False, eval inference는 True
   do_predict: False # train에서 False, 제출용 inference에서는 True, eval inference에서는 False 하지만 우리 4조는 predict 는 기존 명령어로 진행합니다
-  train_output_dir: /data/ephemeral/level2-nlp-mrc-nlp-04/models/3 # korquad 1차 finetuning 시 저장할 dir 이름(예: finetuning_dataset_roberta)으로 바꿔줘야 함
+  train_output_dir: /data/ephemeral/level2-nlp-mrc-nlp-04/models/sweep2 # korquad 1차 finetuning 시 저장할 dir 이름(예: finetuning_dataset_roberta)으로 바꿔줘야 함
   inference_output_dir: /data/ephemeral/level2-nlp-mrc-nlp-04/outputs
   warmup_steps: 0
   weight_decay: 0.0
