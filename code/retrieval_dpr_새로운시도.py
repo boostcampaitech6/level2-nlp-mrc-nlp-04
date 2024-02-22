@@ -246,8 +246,9 @@ class BertEncoder(BertPreTrainedModel):
     
     
 # 데이터셋과 모델은 아래와 같이 불러옵니다.
-train_dataset = load_dataset("squad_kor_v1")['train']
+#train_dataset = load_dataset("squad_kor_v1")['train']
 #train_dataset = load_dataset('json', data_files={'train': '/data/ephemeral/level2-nlp-mrc-nlp-04/data/wikipedia_documents.json'})
+train_dataset = load_dataset('json', data_files={'/data/ephemeral/level2-nlp-mrc-nlp-04/data/wikipedia_documents.json'})
 
 # 메모리가 부족한 경우 일부만 사용하세요 !
 num_sample = 1500
