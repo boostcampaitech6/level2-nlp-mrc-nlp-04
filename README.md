@@ -6,6 +6,10 @@
 | 프로젝트 구현 내용 | • etrieval 단계와 reader 단계의 two-stage 구조 사용 <br>• 평가 지표로는 EM Score(Exact Match Score)이 사용됨, 모델이 예측한 text와 정답 text가 글자 단위로 완전히 똑 같은 경우에만 점수가 부여 |
 | 진행 기간 |  2024년 2월 7일 ~ 2024년 2월 22일 |
 
+# ** 최종 리더보드 ** 
+<img width="1216" alt="image" src="https://github.com/boostcampaitech6/level2-nlp-mrc-nlp-04/assets/69586041/e6de43e7-31c5-41ea-8664-c75bb8cd4285">
+최종 리더보드 순위 2위
+
 ### ⚙️ 개발 환경 및 협업 환경
 
 ![image](https://github.com/boostcampaitech6/level2-klue-nlp-04/assets/63552400/faf13da8-8251-4efb-873c-feb8905c2308)
@@ -41,27 +45,33 @@
 # 💾 데이터 소개
  json 형식의 데이터셋이 제공, rain 데이터셋은 질문의 고유 id, 질문, 답변 텍스트 및 답변의 시작 위치, 답변이 포함된 문서, 문서의 제목, 문서의 고유 id를 포함하고 있다. 이때 train_dataset 경로 내 파일은 3952개의 샘플을 포함하는 train 데이터와 240개의 샘플을 포함하는 validation 데이터셋으로 구성되어 있음.
 
-### 데이터셋 통계
+### 데이터셋 정보
+![image](https://github.com/boostcampaitech6/level2-nlp-mrc-nlp-04/assets/69586041/af4ca733-e3de-4ecd-8f02-a07c7470924d)
+좌측은 train dataset, 우측은 validation dateset 시각화의 결과입니다. 각각 context length, question length, answer length 입니다.
 
-
-- 전체 데이터에 대한 통계는 다음과 같습니다.
+- 데이터셋에 대한 정보
     - `train.csv` : 총 3952개
+    - `vaildation.csv`: 240ro
     - `test_data.csv` : 총 600개 (이중 240개의 데이터셋을 대상으로 리더보드 점수 채점)
-<img width="510" src=https://github.com/boostcampaitech6/level2-klue-nlp-04/assets/67735022/190e5528-e171-43ab-95d3-39fd88d2a4bd>
 
-### **Data 예시**
+- column 1: 고유 id
+- column 2: 질문
+- column 3: 답변 text
+- column 4: 답변이 포함된 문서
+- column 5: 문서의 제목
+- column 6: 문서 고유 id 
 
 
+## 💡 Methods
 
+| 분류 | 내용 |
+| --- | --- |
+| **Retriver 모델 개선** |• Sparse Passage Retrieval : 단어사전(BoW)을 구축하여 TF-IDF 기반으로 중요도를 계산하여 평가지표 EM의 성능을 높이기 위해 정확한 단어를 비교하기 위한 방법. F-IDF 계열 중 SOTA를 달성한 것으로 알려진 BM25 알고리즘을 적용하여 성능 개선을 시도함. 모든 상황에서 유의미한 성능 개선을 보임. <br><br> • Dense Passage Retrieval : Sparse Embedding 은 중요한 단어가 정확히 일치하는 상황에서 유리하나, Dense Embedding은 단어의 유사성 혹은 맥락 파악에 유리하고 학습으로 임베딩을 만들어서 추가적인 학습 가능하다는 특징을 가지고 있다. 때문에  postive passage의 유사도를 높이면서, negative passage의 유사도를 낮추는 방식으로 학습을 시도 했으나, 실제로는 결과가 좋지 못했다. 원인에 대해서는 wrap-up report 참조 바람 |
+| **Reader 모델 개선 - PLM모델** | • 실험한 모델 : 최종적으로 `klue/roberta-large` 사용<br>`klue/roberta-large`, `klue/roberta-base`, `monologg/koelectra-base-v3-finetuned-koquad`,`RoBertForQuestionAnswering` |
+| **Reader 모델 개선** | • Korquad dataset 추가 : Reader 모델 성능 개선을 위해 데이터 증강이 필요하다소 판단. 그중 대회 데이터셋과 KorQuAD 1.0 데이터셋이 context 길이나 데이터 출처가 유사하다고 파악하여 KorQuAD 1.0 데이터셋을 활용해 데이터 추가하여 학습을 진행.  기본 베이스라인 Roberta-large 기준 EM 56.6700 → 59.5800으로 성능 상승을 확인 <br> <br> • Korquad Fine-Tuning : 위의 KorQuAD 1.0 데이터셋을 추가하여 학습한 경우, 방법론 조합에 따라 성능 떨어지는 경우가 발생. 이를 해결하기 위해 train 데이터보다 지문 길이가 긴 데이터를 제외하고 roberta-large를 KorQuAD 1.0 로 fine-tuning 진행. 결과적으로 제대로된 단어를 추출하지 못했기 때문에 최종 제출에는 사용하지 않음. <br> <br> • CNN Layer 추가  : 기존 RobertaForQuestionAnswering의 경우 마지막에 Linear layer만을 통과하는데, 이 앞에 CNN layer 를 추가해 근접 백터간의 연간 정보까지 학습되도록 함. 결과적으로 약 3점의 성능개선을 보임. | 
+| **데이터 전처리** | • Entity Marker : 명사들을 쉼표로 구분해서 question 앞에 추가<br><br>• 특수기호 제거 : 일부 특수 기호(<>, 책 제목 기호, 불필요한 말따옴표 등) 제거 |
+| **앙상블 방법** | • 모델의 다양성과 성능을 고려하여, Hard Voting과 Soft Voting의 두 가지 방식으로 앙상블을 진행하였다. 실험 결과, 전반적으로 Hard Voting 방식이 더 높은 성능을 유도하였고, 이에 따라 최종 제출 결과에도 Hard Voting 방식이 적용 <br><br>• Hard Voting : 앙상블한 파일에서 단순히 가장 자주 등장하는 단어를 선택하는 방식. 이때, 최빈도 단어가 2개 이상일 시 랜덤으로 결과를 출력 <br><br> • Soft Voting: nbest_predictions.json에서 제공하는 단어별 확률값을 활용해서, 각 파일에서 단어의 확률값을 평균낸 후 가장 높은 값을 선택하는 방식 |
 
-![16bc4f53-f355-4b9d-968f-657bb5d9b5e5](https://github.com/boostcampaitech6/level2-klue-nlp-04/assets/67735022/9ce4af17-e6f8-42d3-95ed-eaa0b15221a9)
-
-- column 1: 샘플 순서 id
-- column 2: sentence.
-- column 3: subject_entity
-- column 4: object_entity
-- column 5: label
-- column 6: 샘플 출처
 
 
 ### 사용방법
