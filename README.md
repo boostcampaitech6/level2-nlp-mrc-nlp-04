@@ -6,7 +6,7 @@
 | 프로젝트 구현 내용 | • etrieval 단계와 reader 단계의 two-stage 구조 사용 <br>• 평가 지표로는 EM Score(Exact Match Score)이 사용됨, 모델이 예측한 text와 정답 text가 글자 단위로 완전히 똑 같은 경우에만 점수가 부여 |
 | 진행 기간 |  2024년 2월 7일 ~ 2024년 2월 22일 |
 
-# ** 최종 리더보드 ** 
+# **최종 리더보드** 
 <img width="1216" alt="image" src="https://github.com/boostcampaitech6/level2-nlp-mrc-nlp-04/assets/69586041/e6de43e7-31c5-41ea-8664-c75bb8cd4285">
 최종 리더보드 순위 2위
 
@@ -15,7 +15,7 @@
 ![image](https://github.com/boostcampaitech6/level2-klue-nlp-04/assets/63552400/faf13da8-8251-4efb-873c-feb8905c2308)
 
 
-> **Notion, Slack, Zoom** 을 통해 회의를 진행했으며, **Github**을 통해 코드 공유를 및 Issues 기능을 이용한 관리를 진행. **Wandb**를 이용해 실시간으로 실험을 관리했습니다. 
+> **Notion, Slack, Zoom** 을 통해 회의를 진행했으며, **Github**을 통해 코드 공유를 및 Issues 기능을 이용한 관리를 진행. **Wandb**를 이용해 실시간으로 실험을 관리했음. 
 > 
 
 # **👨‍👩‍👧‍👦 Team & Members** 소개
@@ -47,7 +47,7 @@
 
 ### 데이터셋 정보
 ![image](https://github.com/boostcampaitech6/level2-nlp-mrc-nlp-04/assets/69586041/af4ca733-e3de-4ecd-8f02-a07c7470924d)
-좌측은 train dataset, 우측은 validation dateset 시각화의 결과입니다. 각각 context length, question length, answer length 입니다.
+좌측은 train dataset, 우측은 validation dateset 시각화의 결과다. 각각 context length, question length, answer length 
 
 - 데이터셋에 대한 정보
     - `train.csv` : 총 3952개
