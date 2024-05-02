@@ -35,12 +35,12 @@
 
 | 이름 | 역할 |
 | --- | --- |
-| **구희찬**  | 베이스라인 코드 리팩토링, Retriever 모델 개선(DPR), Reader 모델 개선(PLM 선정 및 하이퍼파라미터 튜닝), 깃허브 관리 |
-| **김민석**  | 베이스라인 코드 기능 추가(slack 연동), Retriever 모델 개선(DPR, SPR), 데이터 전처리(Question row 일반명사 추가) |
-| **손유림**  | EDA, Retriever 모델 개선(SPR), Reader 모델 개선(PLM 선정 및 하이퍼파라미터 튜닝), 데이터 후처리, 앙상블 코드 작성(Hard Voting) |
-| **오태연**  | Retriever 모델 개선(SPR), Reader 모델 개선(Dataset Fine-Tuning, Curriculum Learning, CNN Layer 추가) |
-| **이상수**  | Retriever 모델 개선(DPR), Reader 모델 개선(Dataset Fine-Tuning, Curriculum Learning) |
-| **최예진**  | 베이스라인 코드 기능 추가(wandb 연동), Retriever 모델 개선(하이퍼파라미터 튜닝), 앙상블 코드 작성(Soft Voting) |
+| 구희찬  | 베이스라인 코드 리팩토링, Retriever 모델 개선(DPR), Reader 모델 개선(PLM 선정 및 하이퍼파라미터 튜닝), 깃허브 관리 |
+| 김민석 | 베이스라인 코드 기능 추가(slack 연동), Retriever 모델 개선(DPR, SPR), 데이터 전처리(Question row 일반명사 추가) |
+| 손유림 | EDA, Retriever 모델 개선(SPR), Reader 모델 개선(PLM 선정 및 하이퍼파라미터 튜닝), 데이터 후처리, 앙상블 코드 작성(Hard Voting) |
+| 오태연 | Retriever 모델 개선(SPR), Reader 모델 개선(Dataset Fine-Tuning, Curriculum Learning, CNN Layer 추가) |
+| 이상수 | Retriever 모델 개선(DPR), Reader 모델 개선(Dataset Fine-Tuning, Curriculum Learning) |
+| 최예진 | 베이스라인 코드 기능 추가(wandb 연동), Retriever 모델 개선(하이퍼파라미터 튜닝), 앙상블 코드 작성(Soft Voting) |
 
 # 💾 데이터 소개
  json 형식의 데이터셋이 제공되었고, train 데이터셋은 질문의 고유 id, 질문, 답변 텍스트 및 답변의 시작 위치, 답변이 포함된 문서, 문서의 제목, 문서의 고유 id를 포함하고 있다. 이때 train_dataset 경로 내 파일은 3952개의 샘플을 포함하는 train 데이터와 240개의 샘플을 포함하는 validation 데이터셋으로 구성되어 있다.
@@ -72,9 +72,42 @@
 | **데이터 전처리** | • Entity Marker : 명사들을 쉼표로 구분해서 question 앞에 추가<br><br>• 특수기호 제거 : 일부 특수 기호(<>, 책 제목 기호, 불필요한 말따옴표 등) 제거 |
 | **앙상블 방법** | • 모델의 다양성과 성능을 고려하여, Hard Voting과 Soft Voting의 두 가지 방식으로 앙상블을 진행. 실험 결과, 전반적으로 Hard Voting 방식이 더 높은 성능을 유도하였고, 이에 따라 최종 제출 결과에도 Hard Voting 방식이 적용 <br><br>• Hard Voting : 앙상블한 파일에서 단순히 가장 자주 등장하는 단어를 선택하는 방식. 이때, 최빈도 단어가 2개 이상일 시 랜덤으로 결과를 출력 <br><br> • Soft Voting: nbest_predictions.json에서 제공하는 단어별 확률값을 활용해서, 각 파일에서 단어의 확률값을 평균낸 후 가장 높은 값을 선택하는 방식 |
 
+## 📂 폴더 구조
+
+```bash
+📦level2-nlp-mrc-nlp-04
+├── README.md
+├── code
+│   ├── README.md
+│   ├── arguments.py
+│   ├── custom_model.py
+│   ├── inference.py
+│   ├── inference_bm25.py
+│   ├── inference_es.py
+│   ├── korquad_finetuning.ipynb
+│   ├── requirements.txt
+│   ├── retrieval.py
+│   ├── retrieval_bm25.py
+│   ├── retrieval_es.py
+│   ├── train.py
+│   ├── train_cnn.py
+│   ├── trainer_qa.py
+│   ├── utils
+│   │   ├── datetime_helper.py
+│   │   ├── file_name_utils.py
+│   │   ├── hyper_parameters.py
+│   │   ├── logging_utils.py
+│   │   └── question 전처리.ipynb
+│   └── utils_qa.py
+├── data
+├── eval.sh
+├── inference.sh
+├── run.sh
+└── train.sh
+```
 
 
-### 사용방법
+## 🛠️ 사용방법
 1. aistages의 링크를 통해 데이터 폴더를 다운받는다.
 2. `tar -zxvf data.tar.gz` 로 압축을 해제한다.
 3. data 폴더를 복사 + 붙여넣기 한다.
