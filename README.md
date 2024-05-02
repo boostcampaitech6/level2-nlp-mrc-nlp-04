@@ -79,3 +79,11 @@
 2. `tar -zxvf data.tar.gz` 로 압축을 해제한다.
 3. data 폴더를 복붙한다.
 4. `sh run.sh` or `chmod +x *.sh`로 실행권한 설정 이후에 `./run.sh`
+
+
+## 📜 발표 자료
+[MRC대회발표_PPT 복사본.pdf](https://github.com/boostcampaitech6/level2-nlp-mrc-nlp-04/files/15184120/MRC._PPT.pdf)
+
+## 📝 Wrap-Up Report
+[MRC_NLP_팀 리포트(04조) (1).docx](https://github.com/boostcampaitech6/level2-nlp-mrc-nlp-04/files/15184125/MRC_NLP_.04.1.docx)
+
